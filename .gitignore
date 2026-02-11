@@ -1,0 +1,56 @@
+# Virtual Environments
+/saenv
+venv/
+env/
+ENV/
+.venv
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+*.out
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+
+# Models (if large)
+models/*.pth
+models/*.pt
+models/*.onnx
+models/*.bin
+models/*.weights
+
+# Docker (optional - uncomment if needed)
+# docker-compose.override.yml
+
+# OS
+Thumbs.db
+.DS_Store
