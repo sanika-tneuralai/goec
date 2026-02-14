@@ -1,10 +1,10 @@
 import logging
 from typing import Dict, Optional, List
-from core.opencv_camera import OpenCVCamera
-from api.models import RTSPConfig, CameraStatus
+from camera.streams.opencv import OpenCVCamera
+from camera.schemas import RTSPConfig, CameraStatus
 
 try:
-    from core.multi_stream_manager import MultiStreamManager, PYDS_AVAILABLE
+    from camera.streams.multi_stream import MultiStreamManager, PYDS_AVAILABLE
 except ImportError:
     MultiStreamManager = None
     PYDS_AVAILABLE = False
@@ -41,6 +41,7 @@ class CameraManager:
         self.single_cameras[config.camera_id] = camera
         
         logger.info(f"Started single camera: {config.camera_id}")
+        logger.info(f"✓ CameraManager.start_single_camera completed for {config.camera_id}")
         return True
     
     async def start_multi_stream(self, streams: List[RTSPConfig], batch_size: int, width: int, height: int) -> bool:
@@ -61,6 +62,7 @@ class CameraManager:
         await self.multi_stream_manager.start(streams, width, height)
         
         logger.info(f"Started multi-stream mode with {len(streams)} cameras")
+        logger.info(f"✓ CameraManager.start_multi_stream completed for {len(streams)} cameras")
         return True
     
     async def stop_camera(self, camera_id: str) -> bool:
@@ -73,6 +75,7 @@ class CameraManager:
         del self.single_cameras[camera_id]
         
         logger.info(f"Stopped camera: {camera_id}")
+        logger.info(f"✓ CameraManager.stop_camera completed for {camera_id}")
         return True
     
     async def stop_multi_stream(self) -> List[str]:
@@ -85,6 +88,7 @@ class CameraManager:
         self.multi_stream_manager = None
         
         logger.info(f"Stopped multi-stream mode with {len(camera_ids)} cameras")
+        logger.info(f"✓ CameraManager.stop_multi_stream completed ({len(camera_ids)} cameras)")
         return camera_ids
     
     async def stop_all(self):
@@ -98,6 +102,7 @@ class CameraManager:
             await self.stop_multi_stream()
         
         logger.info("Stopped all cameras")
+        logger.info("✓ CameraManager.stop_all completed")
     
     def get_camera_status(self, camera_id: str) -> Optional[CameraStatus]:
         """Get status of a specific camera"""
@@ -113,6 +118,7 @@ class CameraManager:
             if status_dict:
                 return CameraStatus(**status_dict)
         
+        logger.info(f"✓ CameraManager.get_camera_status completed for {camera_id}")
         return None
     
     def list_cameras(self) -> Dict:
@@ -123,12 +129,14 @@ class CameraManager:
         if self.multi_stream_manager and self.multi_stream_manager.is_running:
             multi = list(self.multi_stream_manager.cameras.keys())
         
-        return {
+        result = {
             'single_stream_cameras': single,
             'multi_stream_cameras': multi,
             'total_count': len(single) + len(multi),
             'mode': 'multi-stream' if multi else 'single-stream' if single else 'idle'
         }
+        logger.info("✓ CameraManager.list_cameras completed")
+        return result
     
     def get_camera_stream(self, camera_id: str):
         """Get camera stream object for detection API"""
@@ -138,6 +146,7 @@ class CameraManager:
         if self.multi_stream_manager:
             return self.multi_stream_manager
         
+        logger.info(f"✓ CameraManager.get_camera_stream completed for {camera_id}")
         return None
 
 

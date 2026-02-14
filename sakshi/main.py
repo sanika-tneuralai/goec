@@ -31,8 +31,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
     # Import here to avoid circular imports
-    from api.camera_manager import camera_manager
-    from core.utils import log_system_info
+    from camera.service import camera_manager
+    from common.utils import log_system_info
     
     # Startup
     logger.info("=" * 60)
@@ -62,22 +62,25 @@ async def lifespan(app: FastAPI):
         logger.error(f"Error stopping cameras during shutdown: {str(e)}")
     
     logger.info("API server shut down successfully")
+    logger.info("✓ lifespan completed")
 
 
 # Create FastAPI application
 app = FastAPI(
-    title="Camera Management API with DeepStream",
+    title="Camera Management & Detection API",
     description="""
-    ## High-Performance RTSP Camera Stream Management for Queue Monitoring
+    ## High-Performance RTSP Camera Stream Management & Object Detection
     
     ### Features:
+    - **Camera Management**: RTSP stream handling with ROI support
+    - **Object Detection**: YOLO-based detection with ROI filtering
     - **Single Camera Mode**: For < 10 cameras with independent processing
     - **Multi-Stream Mode**: For 100+ cameras with batched GPU processing
     - **Hardware Acceleration**: NVIDIA DeepStream for optimal performance
     - **ROI Support**: Define custom regions of interest for queue monitoring
-    - **Real-time Processing**: Low-latency frame extraction and processing
+    - **Real-time Processing**: Low-latency frame extraction and detection
     
-    ### Modes:
+    ### Camera Modes:
     
     #### Single Camera Mode
     - Best for: < 10 cameras
@@ -92,10 +95,11 @@ app = FastAPI(
     - Use `/camera/start-multi` endpoint
     
     ### Quick Start:
-    1. Start a single camera: `POST /camera/start`
+    1. Start a camera: `POST /camera/start`
     2. Check status: `GET /camera/status/{camera_id}`
     3. Get frame: `GET /camera/frame/{camera_id}`
-    4. Stop camera: `DELETE /camera/stop/{camera_id}`
+    4. Run detection: `POST /detection/detect`
+    5. Stop camera: `DELETE /camera/stop/{camera_id}`
     
     For 100+ cameras, use multi-stream mode for best performance!
     """,
@@ -130,16 +134,19 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Import and include router AFTER app creation
-from api.camera_api import router as camera_router
+# Import and include routers AFTER app creation
+from camera.api import router as camera_router
+from detection.api import router as detection_router
+
 app.include_router(camera_router)
+app.include_router(detection_router)
 
 
 # Root endpoint
 @app.get("/", tags=["root"])
 async def root():
     """API Root - Welcome and Quick Links"""
-    return {
+    result = {
         "message": "Camera Management API with DeepStream",
         "version": "2.0.0",
         "status": "operational",
@@ -160,13 +167,15 @@ async def root():
             "hardware": "NVIDIA GPU with DeepStream"
         }
     }
+    logger.info("✓ root endpoint completed")
+    return result
 
 
 @app.get("/info", tags=["root"])
 async def api_info():
     """Get API and system information"""
     import platform
-    from api.camera_manager import camera_manager
+    from camera.service import camera_manager
     
     camera_list = camera_manager.list_cameras()
     
@@ -209,6 +218,7 @@ async def api_info():
             "available": False
         }
     
+    logger.info("✓ api_info endpoint completed")
     return info
 
 

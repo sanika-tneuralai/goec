@@ -18,7 +18,7 @@ except ImportError:
         "Only single-camera mode will work."
     )
 
-from api.models import RTSPConfig
+from camera.schemas import RTSPConfig
 
 logger = logging.getLogger(__name__)
 

@@ -47,6 +47,7 @@ class DeepStreamCamera:
             points = np.array(self.roi_points, dtype=np.int32)
             cv2.fillPoly(mask, [points], 255)
             logger.info(f"ROI mask created for {self.camera_id}")
+            logger.info(f"[{self.camera_id}] ✓ DeepStreamCamera._create_roi_mask completed")
             return mask
         except Exception as e:
             logger.error(f"Failed to create ROI mask for {self.camera_id}: {str(e)}")
@@ -93,6 +94,7 @@ class DeepStreamCamera:
             bus.connect("message", self._on_bus_message)
             
             logger.info(f"Pipeline created successfully for {self.camera_id}")
+            logger.info(f"[{self.camera_id}] ✓ DeepStreamCamera._build_pipeline completed")
             return True
             
         except Exception as e:
@@ -123,6 +125,8 @@ class DeepStreamCamera:
         elif msg_type == Gst.MessageType.STATE_CHANGED:
             old, new, pending = message.parse_state_changed()
             logger.debug(f"[{self.camera_id}] State changed: {old.value_nick} -> {new.value_nick}")
+        
+        logger.debug(f"[{self.camera_id}] ✓ DeepStreamCamera._on_bus_message completed")
     
     def _on_new_sample(self, appsink):
         """Callback for processing new frames"""
@@ -170,6 +174,7 @@ class DeepStreamCamera:
             logger.error(f"[{self.camera_id}] Error processing frame: {str(e)}")
             return Gst.FlowReturn.ERROR
         
+        logger.debug(f"[{self.camera_id}] ✓ DeepStreamCamera._on_new_sample completed")
         return Gst.FlowReturn.OK
     
     def _run_loop(self):
@@ -182,6 +187,7 @@ class DeepStreamCamera:
             logger.error(f"[{self.camera_id}] Error in GLib loop: {str(e)}")
         finally:
             logger.info(f"[{self.camera_id}] GLib main loop stopped")
+            logger.info(f"[{self.camera_id}] ✓ DeepStreamCamera._run_loop completed")
     
     async def start(self) -> bool:
         """Start camera stream"""
@@ -205,6 +211,7 @@ class DeepStreamCamera:
             self.thread.start()
             
             logger.info(f"[{self.camera_id}] Started successfully")
+            logger.info(f"[{self.camera_id}] ✓ DeepStreamCamera.start completed")
             return True
             
         except Exception as e:
@@ -215,7 +222,10 @@ class DeepStreamCamera:
     async def get_frame(self) -> Optional[np.ndarray]:
         """Get latest raw frame"""
         if self.current_frame is not None:
-            return self.current_frame.copy()
+            result = self.current_frame.copy()
+            logger.info(f"[{self.camera_id}] ✓ DeepStreamCamera.get_frame completed")
+            return result
+        logger.info(f"[{self.camera_id}] ✓ DeepStreamCamera.get_frame completed (no frame)")
         return None
     
     async def get_preprocessed_frame(self) -> Optional[Dict]:
@@ -223,6 +233,7 @@ class DeepStreamCamera:
         frame = await self.get_frame()
         
         if frame is None:
+            logger.info(f"[{self.camera_id}] ✓ DeepStreamCamera.get_preprocessed_frame completed (no frame)")
             return None
         
         # Apply ROI mask if available
@@ -230,7 +241,7 @@ class DeepStreamCamera:
         if self.roi_mask is not None:
             masked_frame = cv2.bitwise_and(frame, frame, mask=self.roi_mask)
         
-        return {
+        result = {
             'frame': masked_frame,
             'original_frame': frame,
             'roi_mask': self.roi_mask,
@@ -240,6 +251,8 @@ class DeepStreamCamera:
             'roi_points': self.roi_points,
             'frame_count': self.frame_count
         }
+        logger.info(f"[{self.camera_id}] ✓ DeepStreamCamera.get_preprocessed_frame completed")
+        return result
     
     async def stop(self):
         """Stop camera stream and cleanup resources"""
@@ -268,13 +281,14 @@ class DeepStreamCamera:
             self.current_frame = None
             
             logger.info(f"[{self.camera_id}] Stopped successfully")
+            logger.info(f"[{self.camera_id}] ✓ DeepStreamCamera.stop completed")
             
         except Exception as e:
             logger.error(f"[{self.camera_id}] Error during stop: {str(e)}")
     
     def get_status(self) -> Dict:
         """Get camera status information"""
-        return {
+        result = {
             'camera_id': self.camera_id,
             'is_running': self.is_running,
             'rtsp_url': self.rtsp_url,
@@ -285,3 +299,5 @@ class DeepStreamCamera:
             'has_current_frame': self.current_frame is not None,
             'backend': 'deepstream-single'
         }
+        logger.info(f"[{self.camera_id}] ✓ DeepStreamCamera.get_status completed")
+        return result

@@ -27,6 +27,7 @@ def create_roi_mask(roi_points: List[List[float]], frame_shape: Tuple[int, int])
         points = np.array(roi_points, dtype=np.int32)
         cv2.fillPoly(mask, [points], 255)
         logger.debug(f"ROI mask created with {len(roi_points)} points")
+        logger.info("✓ create_roi_mask completed")
         return mask
     except Exception as e:
         logger.error(f"Failed to create ROI mask: {str(e)}")
@@ -48,7 +49,9 @@ def apply_roi_to_frame(frame: np.ndarray, roi_mask: np.ndarray) -> np.ndarray:
         return frame
     
     try:
-        return cv2.bitwise_and(frame, frame, mask=roi_mask)
+        result = cv2.bitwise_and(frame, frame, mask=roi_mask)
+        logger.info("✓ apply_roi_to_frame completed")
+        return result
     except Exception as e:
         logger.error(f"Failed to apply ROI mask: {str(e)}")
         return frame
@@ -68,7 +71,9 @@ def validate_rtsp_url(rtsp_url: str) -> bool:
         return False
     
     valid_protocols = ['rtsp://', 'rtsps://']
-    return any(rtsp_url.startswith(protocol) for protocol in valid_protocols)
+    result = any(rtsp_url.startswith(protocol) for protocol in valid_protocols)
+    logger.info(f"✓ validate_rtsp_url completed: {result}")
+    return result
 
 
 def calculate_fps(frame_count: int, elapsed_time: float) -> float:
@@ -84,7 +89,9 @@ def calculate_fps(frame_count: int, elapsed_time: float) -> float:
     """
     if elapsed_time <= 0:
         return 0.0
-    return frame_count / elapsed_time
+    result = frame_count / elapsed_time
+    logger.info(f"✓ calculate_fps completed: {result:.2f}")
+    return result
 
 
 def draw_roi_on_frame(frame: np.ndarray, roi_points: List[List[float]], 
@@ -114,6 +121,7 @@ def draw_roi_on_frame(frame: np.ndarray, roi_points: List[List[float]],
         for point in roi_points:
             cv2.circle(frame_copy, (int(point[0]), int(point[1])), 5, color, -1)
         
+        logger.info("✓ draw_roi_on_frame completed")
         return frame_copy
     except Exception as e:
         logger.error(f"Failed to draw ROI: {str(e)}")
@@ -157,9 +165,12 @@ def resize_frame(frame: np.ndarray, width: int, height: int,
                 resized = cv2.copyMakeBorder(resized, top, bottom, left, right, 
                                             cv2.BORDER_CONSTANT, value=(0, 0, 0))
             
+            logger.info("✓ resize_frame completed (with aspect ratio)")
             return resized
         else:
-            return cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
+            result = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
+            logger.info("✓ resize_frame completed")
+            return result
             
     except Exception as e:
         logger.error(f"Failed to resize frame: {str(e)}")
@@ -191,6 +202,7 @@ def preprocess_frame_for_detection(frame: np.ndarray,
         if normalize:
             processed = processed.astype(np.float32) / 255.0
         
+        logger.info("✓ preprocess_frame_for_detection completed")
         return processed
         
     except Exception as e:
@@ -209,8 +221,11 @@ def format_timestamp(timestamp: Optional[float] = None) -> str:
         ISO formatted timestamp string
     """
     if timestamp is None:
-        return datetime.now().isoformat()
-    return datetime.fromtimestamp(timestamp).isoformat()
+        result = datetime.now().isoformat()
+    else:
+        result = datetime.fromtimestamp(timestamp).isoformat()
+    logger.info("✓ format_timestamp completed")
+    return result
 
 
 def calculate_grid_layout(num_items: int) -> Tuple[int, int]:
@@ -225,6 +240,7 @@ def calculate_grid_layout(num_items: int) -> Tuple[int, int]:
     """
     rows = int(np.ceil(np.sqrt(num_items)))
     cols = int(np.ceil(num_items / rows))
+    logger.info(f"✓ calculate_grid_layout completed: {rows}x{cols} for {num_items} items")
     return rows, cols
 
 
@@ -245,7 +261,7 @@ def get_frame_metadata(frame: np.ndarray, camera_id: str,
     h, w = frame.shape[:2]
     channels = frame.shape[2] if len(frame.shape) > 2 else 1
     
-    return {
+    result = {
         'camera_id': camera_id,
         'frame_count': frame_count,
         'timestamp': format_timestamp(timestamp),
@@ -255,6 +271,8 @@ def get_frame_metadata(frame: np.ndarray, camera_id: str,
         'dtype': str(frame.dtype),
         'size_bytes': frame.nbytes
     }
+    logger.info(f"✓ get_frame_metadata completed for {camera_id}")
+    return result
 
 
 def validate_roi_points(roi_points: List[List[float]], 
@@ -279,6 +297,7 @@ def validate_roi_points(roi_points: List[List[float]],
             if x < 0 or x > frame_width or y < 0 or y > frame_height:
                 logger.warning(f"ROI point ({x}, {y}) out of bounds ({frame_width}x{frame_height})")
                 return False
+        logger.info("✓ validate_roi_points completed: valid")
         return True
     except Exception as e:
         logger.error(f"Error validating ROI points: {str(e)}")
@@ -301,6 +320,7 @@ class PerformanceMonitor:
         # Keep only recent frames
         if len(self.frame_times) > self.window_size:
             self.frame_times.pop(0)
+        logger.debug("✓ PerformanceMonitor.add_frame completed")
     
     def get_fps(self) -> float:
         """Calculate current FPS"""
@@ -319,12 +339,14 @@ class PerformanceMonitor:
     
     def get_stats(self) -> Dict:
         """Get performance statistics"""
-        return {
+        result = {
             'fps': round(self.get_fps(), 2),
             'uptime_seconds': round(self.get_uptime(), 2),
             'total_frames': len(self.frame_times),
             'window_size': self.window_size
         }
+        logger.info("✓ PerformanceMonitor.get_stats completed")
+        return result
 
 
 def log_system_info():
@@ -340,6 +362,7 @@ def log_system_info():
         logger.info(f"CPU Count: {psutil.cpu_count()}")
         logger.info(f"Memory: {psutil.virtual_memory().total / (1024**3):.2f} GB")
         logger.info("=" * 50)
+        logger.info("✓ log_system_info completed")
     except ImportError:
         logger.warning("psutil not available, skipping system info")
     except Exception as e:

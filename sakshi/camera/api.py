@@ -4,9 +4,9 @@ import logging
 import cv2
 import base64
 
-from api.models import RTSPConfig, MultiStreamConfig, CameraStatus
-from api.camera_manager import camera_manager
-from core.utils import validate_rtsp_url
+from camera.schemas import RTSPConfig, MultiStreamConfig, CameraStatus
+from camera.service import camera_manager
+from common.utils import validate_rtsp_url
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,7 @@ async def start_camera(config: RTSPConfig):
         
         await camera_manager.start_single_camera(config)
         
+        logger.info(f"✓ start_camera completed for {config.camera_id}")
         return {
             "status": "success",
             "message": f"Camera {config.camera_id} started successfully",
@@ -119,6 +120,7 @@ async def start_multi_stream(config: MultiStreamConfig):
             height=config.height
         )
         
+        logger.info(f"✓ start_multi_stream completed for {len(config.streams)} cameras")
         return {
             "status": "success",
             "message": f"Started {len(config.streams)} cameras in multi-stream mode",
@@ -158,6 +160,7 @@ async def get_camera_status(camera_id: str):
             detail=f"Camera {camera_id} not found"
         )
     
+    logger.info(f"✓ get_camera_status completed for {camera_id}")
     return status
 
 
@@ -172,6 +175,7 @@ async def list_cameras():
     - Total count
     - Current mode (single-stream/multi-stream/idle)
     """
+    logger.info("✓ list_cameras completed")
     return camera_manager.list_cameras()
 
 
@@ -235,6 +239,7 @@ async def get_frame(
                     "has_roi_mask": frame_data['roi_mask'] is not None
                 })
             
+            logger.info(f"✓ get_frame completed for {camera_id} (single-stream)")
             return response
             
         else:
@@ -259,6 +264,7 @@ async def get_frame(
                     "stream_index": status['stream_index']
                 })
             
+            logger.info(f"✓ get_frame completed for {camera_id} (multi-stream)")
             return response
             
     except HTTPException:
@@ -281,6 +287,7 @@ async def stop_camera(camera_id: str):
     try:
         await camera_manager.stop_camera(camera_id)
         
+        logger.info(f"✓ stop_camera completed for {camera_id}")
         return {
             "status": "success",
             "message": f"Camera {camera_id} stopped successfully"
@@ -307,6 +314,7 @@ async def stop_multi_stream():
     try:
         camera_ids = await camera_manager.stop_multi_stream()
         
+        logger.info(f"✓ stop_multi_stream completed ({len(camera_ids)} cameras stopped)")
         return {
             "status": "success",
             "message": "Multi-stream mode stopped",
@@ -334,6 +342,7 @@ async def stop_all_cameras():
     try:
         await camera_manager.stop_all()
         
+        logger.info("✓ stop_all_cameras completed")
         return {
             "status": "success",
             "message": "All cameras stopped successfully"
@@ -356,6 +365,7 @@ async def health_check():
     """
     camera_list = camera_manager.list_cameras()
     
+    logger.info("✓ health_check completed")
     return {
         "status": "healthy",
         "service": "camera-management-api",
@@ -377,4 +387,5 @@ def get_camera_stream(camera_id: str):
     Returns:
         Camera stream object or None
     """
+    logger.info(f"✓ get_camera_stream completed for {camera_id}")
     return camera_manager.get_camera_stream(camera_id)

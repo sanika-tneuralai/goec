@@ -2,6 +2,7 @@ import logging
 import cv2
 import numpy as np
 import asyncio
+import os
 from datetime import datetime
 from typing import Optional, List
 from threading import Thread, Lock
@@ -42,6 +43,7 @@ class OpenCVCamera:
             points = np.array(self.roi_points, dtype=np.int32)
             cv2.fillPoly(mask, [points], 255)
             logger.info(f"[{self.camera_id}] ROI mask created")
+            logger.info(f"[{self.camera_id}] ✓ OpenCVCamera._create_roi_mask completed")
             return mask
         except Exception as e:
             logger.error(f"[{self.camera_id}] Failed to create ROI mask: {str(e)}")
@@ -79,6 +81,7 @@ class OpenCVCamera:
             logger.error(f"[{self.camera_id}] Error in capture loop: {str(e)}")
         finally:
             logger.info(f"[{self.camera_id}] Capture loop stopped")
+            logger.info(f"[{self.camera_id}] ✓ OpenCVCamera._capture_loop completed")
     
     async def start(self) -> bool:
         """Start camera stream"""
@@ -89,8 +92,17 @@ class OpenCVCamera:
             
             logger.info(f"[{self.camera_id}] Opening RTSP stream: {self.rtsp_url}")
             
-            # Open with OpenCV + FFmpeg backend
-            self.cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
+            # Set FFmpeg options for RTSP
+            # Use TCP transport (more reliable than UDP for problematic networks)
+            os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp|max_delay;500000'
+            
+            # Open with OpenCV + FFmpeg backend with RTSP options
+            # Use TCP transport for better reliability (UDP can drop packets)
+            # Set timeout to prevent hanging
+            self.cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG, [
+                cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000,  # 10 second connection timeout
+                cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000,   # 10 second read timeout
+            ])
             
             # Configure for RTSP
             self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize latency
@@ -101,6 +113,7 @@ class OpenCVCamera:
             
             # Test read
             ret, test_frame = self.cap.read()
+            # print(f'**************{ret}, {test_frame}')
             if not ret:
                 raise Exception("Failed to read first frame from stream")
             
@@ -112,6 +125,7 @@ class OpenCVCamera:
             self.thread.start()
             
             logger.info(f"[{self.camera_id}] Started successfully")
+            logger.info(f"[{self.camera_id}] ✓ OpenCVCamera.start completed")
             return True
             
         except Exception as e:
@@ -134,6 +148,7 @@ class OpenCVCamera:
                 self.cap.release()
             
             logger.info(f"[{self.camera_id}] Stopped successfully")
+            logger.info(f"[{self.camera_id}] ✓ OpenCVCamera.stop completed")
             return True
             
         except Exception as e:
@@ -144,16 +159,20 @@ class OpenCVCamera:
         """Get current frame"""
         with self.frame_lock:
             if self.current_frame is not None:
-                return self.current_frame.copy()
+                result = self.current_frame.copy()
+                logger.info(f"[{self.camera_id}] ✓ OpenCVCamera.get_frame completed")
+                return result
+        logger.info(f"[{self.camera_id}] ✓ OpenCVCamera.get_frame completed (no frame)")
         return None
     
     async def get_preprocessed_frame(self) -> Optional[dict]:
         """Get preprocessed frame data for API (async compatible)"""
         frame = self.get_frame()
         if frame is None:
+            logger.info(f"[{self.camera_id}] ✓ OpenCVCamera.get_preprocessed_frame completed (no frame)")
             return None
         
-        return {
+        result = {
             "frame": frame,
             "timestamp": self.last_frame_time,
             "shape": frame.shape,
@@ -161,10 +180,12 @@ class OpenCVCamera:
             "roi_mask": self.roi_mask,
             "frame_count": self.frame_count
         }
+        logger.info(f"[{self.camera_id}] ✓ OpenCVCamera.get_preprocessed_frame completed")
+        return result
     
     def get_status(self) -> dict:
         """Get camera status"""
-        return {
+        result = {
             "camera_id": self.camera_id,
             "is_running": self.is_running,
             "backend": "opencv-ffmpeg",
@@ -173,3 +194,5 @@ class OpenCVCamera:
             "last_frame_time": self.last_frame_time,
             "rtsp_url": self.rtsp_url
         }
+        logger.info(f"[{self.camera_id}] ✓ OpenCVCamera.get_status completed")
+        return result
