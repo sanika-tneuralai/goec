@@ -7,6 +7,7 @@ import logging
 from detection.schemas import DetectionRequest, DetectionResponse, DetectionStats
 from detection.service import get_detection_service
 from camera.service import camera_manager
+from usecase.service import evaluate_person_in_roi
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,20 @@ async def detect_objects(request: DetectionRequest):
     )
     
     logger.info(f"Detection completed: {result.total_detections_count} total, {result.roi_detections_count} in ROI")
+    
+    # Auto-call Usecase API for evaluation
+    print(f"[DETECTION] Auto-triggering usecase evaluation for camera: {request.camera_id}")
+    try:
+        detection_output = result.model_dump() if hasattr(result, 'model_dump') else result.dict()
+        usecase_result = evaluate_person_in_roi(
+            camera_id=request.camera_id,
+            detection_output=detection_output
+        )
+        print(f"[DETECTION] Usecase evaluation completed - Triggered: {usecase_result['usecase_triggered']}")
+    except Exception as e:
+        print(f"[DETECTION] Warning: Usecase evaluation failed - {str(e)}")
+        # Continue even if usecase fails - don't break detection API
+    
     print(f"✓ detect_objects completed for {request.camera_id}")
     
     return result

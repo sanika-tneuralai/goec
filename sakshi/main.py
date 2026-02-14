@@ -137,9 +137,11 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Import and include routers AFTER app creation
 from camera.api import router as camera_router
 from detection.api import router as detection_router
+from usecase.api import router as usecase_router
 
 app.include_router(camera_router)
 app.include_router(detection_router)
+app.include_router(usecase_router)
 
 
 # Root endpoint
