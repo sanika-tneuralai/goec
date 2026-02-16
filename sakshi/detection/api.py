@@ -3,6 +3,8 @@ Detection API endpoints.
 """
 from fastapi import APIRouter, HTTPException
 import logging
+import requests
+from typing import Optional, Dict, Any
 
 from detection.schemas import DetectionRequest, DetectionResponse, DetectionStats
 from detection.service import get_detection_service
@@ -12,6 +14,52 @@ from usecase.service import evaluate_person_in_roi
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/detection", tags=["detection"])
+
+
+def fetch_camera_config(camera_id: str, config_api_url: str = "http://localhost:8000") -> Optional[Dict[str, Any]]:
+    """
+    Fetch camera configuration from Configuration API.
+    
+    Args:
+        camera_id: Camera identifier
+        config_api_url: Base URL of Configuration API
+        
+    Returns:
+        Camera configuration dict or None if unavailable
+    """
+    print(f"[DETECTION CONFIG] Attempting to fetch configuration for camera_id: {camera_id}")
+    print(f"[DETECTION CONFIG] Configuration API URL: {config_api_url}/config/camera/{camera_id}")
+    
+    try:
+        response = requests.get(
+            f"{config_api_url}/config/camera/{camera_id}",
+            timeout=2.0
+        )
+        print(f"[DETECTION CONFIG] Configuration API response status: {response.status_code}")
+        
+        if response.status_code == 200:
+            config = response.json()
+            print(f"[DETECTION CONFIG] Configuration fetched successfully")
+            print(f"[DETECTION CONFIG]   - confidence_threshold: {config.get('confidence_threshold')}")
+            print(f"[DETECTION CONFIG]   - detection_model: {config.get('detection_model')}")
+            print(f"[DETECTION CONFIG]   - roi_count: {len(config.get('rois', []))}")
+            return config
+        elif response.status_code == 404:
+            print(f"[DETECTION CONFIG] No configuration found for camera_id: {camera_id}")
+            return None
+        else:
+            print(f"[DETECTION CONFIG] Unexpected status code: {response.status_code}")
+            return None
+            
+    except requests.exceptions.Timeout:
+        print(f"[DETECTION CONFIG] WARNING: Configuration API timeout for camera_id: {camera_id}")
+        return None
+    except requests.exceptions.ConnectionError:
+        print(f"[DETECTION CONFIG] WARNING: Configuration API connection error for camera_id: {camera_id}")
+        return None
+    except Exception as e:
+        print(f"[DETECTION CONFIG] WARNING: Failed to fetch configuration: {str(e)}")
+        return None
 
 
 @router.post("/detect", response_model=DetectionResponse)
@@ -38,6 +86,25 @@ async def detect_objects(request: DetectionRequest):
     """
     logger.info(f"Detection request for camera: {request.camera_id}")
     
+    # Fetch camera configuration from Configuration API
+    print(f"[DETECTION] Fetching camera configuration from Configuration API")
+    camera_config = fetch_camera_config(request.camera_id)
+    
+    # Determine confidence threshold: Config API > Request > Default
+    if camera_config and 'confidence_threshold' in camera_config:
+        confidence_threshold = camera_config['confidence_threshold']
+        print(f"[DETECTION] Using confidence_threshold from Configuration API: {confidence_threshold}")
+    else:
+        confidence_threshold = request.confidence_threshold
+        print(f"[DETECTION] Using confidence_threshold from request (fallback): {confidence_threshold}")
+    
+    # Log detection model from config (selection only, no loading)
+    if camera_config and 'detection_model' in camera_config:
+        detection_model = camera_config['detection_model']
+        print(f"[DETECTION] Detection model from Configuration API: {detection_model}")
+    else:
+        print(f"[DETECTION] No detection model in configuration, using default")
+    
     # Get camera object
     camera = camera_manager.get_camera_stream(request.camera_id)
     if not camera:
@@ -53,15 +120,17 @@ async def detect_objects(request: DetectionRequest):
     # Get ROI data from camera
     roi_points = camera.roi_points
     roi_mask = camera.roi_mask
+    print(f"[DETECTION] Using ROI from camera object: roi_points={roi_points is not None}, roi_mask={roi_mask is not None}")
     
-    # Run detection
+    # Run detection with configuration values
+    print(f"[DETECTION] Running detection with confidence_threshold: {confidence_threshold}")
     detection_service = get_detection_service()
     result = detection_service.detect(
         frame=frame,
         camera_id=request.camera_id,
         roi_points=roi_points,
         roi_mask=roi_mask,
-        confidence_threshold=request.confidence_threshold,
+        confidence_threshold=confidence_threshold,
         iou_threshold=request.iou_threshold,
         classes=request.classes
     )

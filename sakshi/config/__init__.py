@@ -1,0 +1,3 @@
+from config.api import router
+
+__all__ = ["router"]

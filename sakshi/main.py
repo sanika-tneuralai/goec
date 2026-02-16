@@ -138,10 +138,14 @@ async def global_exception_handler(request: Request, exc: Exception):
 from camera.api import router as camera_router
 from detection.api import router as detection_router
 from usecase.api import router as usecase_router
+from config.api import router as config_router
+from alert.api import router as alert_router
 
 app.include_router(camera_router)
 app.include_router(detection_router)
 app.include_router(usecase_router)
+app.include_router(config_router)
+app.include_router(alert_router)
 
 
 # Root endpoint
