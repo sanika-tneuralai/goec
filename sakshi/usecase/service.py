@@ -1,144 +1,93 @@
 """
-Usecase evaluation service.
+Usecase evaluation service - orchestrates multiple usecase rules.
 """
-import requests
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List
+from usecase.rules import get_usecase_rule
+from usecase.schemas import UsecaseResult
 
 
-def fetch_camera_rois(camera_id: str, config_api_url: str = "http://localhost:8000") -> Optional[List[Dict[str, Any]]]:
+def evaluate_usecases(camera_id: str, detection_output: Dict[str, Any], usecases: List[str]) -> Dict[str, Any]:
     """
-    Fetch ROI definitions for a camera from Configuration API.
+    Evaluate multiple usecases against a single detection output.
+    
+    This is the orchestrator that:
+    - Takes ONE detection output
+    - Runs MULTIPLE usecase rules on it
+    - Returns aggregated results
     
     Args:
         camera_id: Camera identifier
-        config_api_url: Base URL of Configuration API
+        detection_output: Detection API response (computed ONCE)
+        usecases: List of usecase IDs to evaluate
         
     Returns:
-        List of ROI definitions or None if unavailable
+        Dictionary containing:
+            - camera_id: Camera identifier
+            - results: List of UsecaseResult objects
     """
-    print(f"[USECASE CONFIG] Attempting to fetch ROI configuration for camera_id: {camera_id}")
-    print(f"[USECASE CONFIG] Configuration API URL: {config_api_url}/config/camera/{camera_id}")
+    print(f"\n[ORCHESTRATOR] ============================================================")
+    print(f"[ORCHESTRATOR] USECASE EVALUATION ORCHESTRATOR")
+    print(f"[ORCHESTRATOR] ============================================================")
+    print(f"[ORCHESTRATOR] Camera ID: {camera_id}")
+    print(f"[ORCHESTRATOR] Number of usecases to evaluate: {len(usecases)}")
+    print(f"[ORCHESTRATOR] Usecases: {', '.join(usecases)}")
     
-    try:
-        response = requests.get(
-            f"{config_api_url}/config/camera/{camera_id}",
-            timeout=2.0
-        )
-        print(f"[USECASE CONFIG] Configuration API response status: {response.status_code}")
-        
-        if response.status_code == 200:
-            config = response.json()
-            rois = config.get('rois', [])
-            print(f"[USECASE CONFIG] ROI configuration fetched successfully")
-            print(f"[USECASE CONFIG]   - Number of ROIs: {len(rois)}")
-            for idx, roi in enumerate(rois):
-                print(f"[USECASE CONFIG]   - ROI {idx+1}: id={roi.get('roi_id')}, type={roi.get('roi_type')}")
-            return rois
-        elif response.status_code == 404:
-            print(f"[USECASE CONFIG] No configuration found for camera_id: {camera_id}")
-            return None
-        else:
-            print(f"[USECASE CONFIG] Unexpected status code: {response.status_code}")
-            return None
-            
-    except requests.exceptions.Timeout:
-        print(f"[USECASE CONFIG] WARNING: Configuration API timeout for camera_id: {camera_id}")
-        return None
-    except requests.exceptions.ConnectionError:
-        print(f"[USECASE CONFIG] WARNING: Configuration API connection error for camera_id: {camera_id}")
-        return None
-    except Exception as e:
-        print(f"[USECASE CONFIG] WARNING: Failed to fetch ROI configuration: {str(e)}")
-        return None
-
-
-def evaluate_person_in_roi(camera_id: str, detection_output: dict) -> dict:
-    """
-    Evaluate usecase: If a person is detected inside ROI, trigger alert.
-    
-    Rule: class_name == "person" AND in_roi == true
-    
-    Args:
-        camera_id: Camera identifier
-        detection_output: Detection API response JSON
-        
-    Returns:
-        Alert-ready payload
-    """
-    print(f"\n[SERVICE] ========== FUNCTION ENTRY: evaluate_person_in_roi ==========")
-    print(f"[SERVICE] Input Parameters:")
-    print(f"[SERVICE]   - camera_id: {camera_id}")
-    print(f"[SERVICE]   - detection_output keys: {list(detection_output.keys())}")
-    
-    # Fetch ROI configuration from Configuration API for validation
-    print(f"[SERVICE] Fetching ROI configuration from Configuration API")
-    rois_config = fetch_camera_rois(camera_id)
-    if rois_config:
-        print(f"[SERVICE] ROI configuration available: {len(rois_config)} ROIs defined in config")
-    else:
-        print(f"[SERVICE] No ROI configuration found, using detection output as-is (fallback)")
-    
-    print(f"[SERVICE] Starting usecase evaluation for camera: {camera_id}")
-    print(f"[SERVICE] Detection output received: {len(detection_output.get('detections', []))} detections")
-    
-    print(f"[SERVICE] Initializing usecase variables...")
-    usecase_id = "person_in_roi"
-    usecase_triggered = False
-    matched_detections = []
-    print(f"[SERVICE]   - usecase_id: {usecase_id}")
-    print(f"[SERVICE]   - usecase_triggered: {usecase_triggered}")
-    print(f"[SERVICE]   - matched_detections: []")
-    
-    # Extract detections from detection output
     detections = detection_output.get("detections", [])
-    print(f"[SERVICE] Extracted {len(detections)} detections from detection_output")
+    print(f"[ORCHESTRATOR] Detection output contains: {len(detections)} detections")
+    print(f"[ORCHESTRATOR] Detection will be evaluated ONCE for ALL usecases")
+    print(f"[ORCHESTRATOR] ============================================================\n")
     
-    # Check each detection
-    print(f"[SERVICE] Starting detection loop...")
-    for idx, detection in enumerate(detections):
-        print(f"[SERVICE] --- Processing Detection {idx+1}/{len(detections)} ---")
-        class_name = detection.get("class_name", "")
-        in_roi = detection.get("in_roi", False)
-        confidence = detection.get("confidence", 0.0)
-        
-        print(f"[SERVICE]   Detection {idx+1}: class_name='{class_name}', in_roi={in_roi}, confidence={confidence}")
-        
-        # Check if person AND in ROI
-        print(f"[SERVICE]   Checking condition: class_name == 'person' AND in_roi == True")
-        print(f"[SERVICE]   class_name == 'person': {class_name == 'person'}")
-        print(f"[SERVICE]   in_roi == True: {in_roi == True}")
-        
-        if class_name == "person" and in_roi:
-            print(f"[SERVICE]   ✓✓✓ MATCH FOUND ✓✓✓")
-            print(f"[SERVICE]   Person detected inside ROI - Confidence: {confidence}")
-            print(f"[SERVICE]   Setting usecase_triggered = True")
-            usecase_triggered = True
-            matched_detections.append(detection)
-            print(f"[SERVICE]   Added to matched_detections (total now: {len(matched_detections)})")
-        else:
-            print(f"[SERVICE]   ✗ No match - Condition not satisfied")
+    results = []
     
-    print(f"[SERVICE] Detection loop completed")
-    matched_count = len(matched_detections)
-    print(f"[SERVICE] Total matched detections: {matched_count}")
+    for idx, usecase_id in enumerate(usecases):
+        print(f"[ORCHESTRATOR] --- Evaluating Usecase {idx+1}/{len(usecases)}: '{usecase_id}' ---")
+        
+        try:
+            # Get the rule instance for this usecase
+            rule = get_usecase_rule(usecase_id)
+            print(f"[ORCHESTRATOR] Rule loaded: {rule.__class__.__name__}")
+            
+            # Evaluate the rule against detection output
+            print(f"[ORCHESTRATOR] Calling rule.evaluate() for '{usecase_id}'...")
+            evaluation_result = rule.evaluate(detection_output)
+            
+            # Build result object
+            result = UsecaseResult(
+                usecase_id=usecase_id,
+                triggered=evaluation_result["triggered"],
+                matched_count=len(evaluation_result["matched_objects"]),
+                matched_objects=evaluation_result["matched_objects"]
+            )
+            
+            print(f"[ORCHESTRATOR] Usecase '{usecase_id}' result:")
+            print(f"[ORCHESTRATOR]   - Triggered: {result.triggered}")
+            print(f"[ORCHESTRATOR]   - Matched count: {result.matched_count}")
+            
+            results.append(result)
+            
+        except ValueError as e:
+            print(f"[ORCHESTRATOR] ERROR: {str(e)}")
+            # Skip unknown usecase, don't fail entire evaluation
+            continue
+        except Exception as e:
+            print(f"[ORCHESTRATOR] ERROR: Usecase '{usecase_id}' evaluation failed: {str(e)}")
+            # Skip failed usecase, don't fail entire evaluation
+            continue
     
-    # Build alert-ready payload
-    print(f"[SERVICE] Building alert-ready payload...")
-    alert_payload = {
+    print(f"\n[ORCHESTRATOR] ============================================================")
+    print(f"[ORCHESTRATOR] ALL USECASES EVALUATED")
+    print(f"[ORCHESTRATOR] Total results: {len(results)}/{len(usecases)}")
+    
+    triggered_count = sum(1 for r in results if r.triggered)
+    print(f"[ORCHESTRATOR] Triggered usecases: {triggered_count}")
+    
+    for result in results:
+        status = "✓ TRIGGERED" if result.triggered else "✗ Not triggered"
+        print(f"[ORCHESTRATOR]   - {result.usecase_id}: {status} ({result.matched_count} matches)")
+    
+    print(f"[ORCHESTRATOR] ============================================================\n")
+    
+    return {
         "camera_id": camera_id,
-        "usecase_id": usecase_id,
-        "usecase_triggered": usecase_triggered,
-        "matched_detections": matched_detections,
-        "matched_count": matched_count
+        "results": results
     }
-    print(f"[SERVICE] Alert payload built:")
-    print(f"[SERVICE]   - camera_id: {alert_payload['camera_id']}")
-    print(f"[SERVICE]   - usecase_id: {alert_payload['usecase_id']}")
-    print(f"[SERVICE]   - usecase_triggered: {alert_payload['usecase_triggered']}")
-    print(f"[SERVICE]   - matched_count: {alert_payload['matched_count']}")
-    
-    print(f"[SERVICE] Evaluation complete - Triggered: {usecase_triggered}, Matched persons: {matched_count}")
-    print(f"[SERVICE] Alert payload ready for transmission")
-    print(f"[SERVICE] ========== FUNCTION EXIT: evaluate_person_in_roi ==========\n")
-    
-    return alert_payload

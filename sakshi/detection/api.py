@@ -9,7 +9,6 @@ from typing import Optional, Dict, Any
 from detection.schemas import DetectionRequest, DetectionResponse, DetectionStats
 from detection.service import get_detection_service
 from camera.service import camera_manager
-from usecase.service import evaluate_person_in_roi
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +83,10 @@ async def detect_objects(request: DetectionRequest):
     - Processing time
     - Frame metadata
     """
+    print(f"\n[DETECTION API] POST /detection/detect")
+    print(f"[DETECTION API] Request for camera: {request.camera_id}")
+    print(f"[DETECTION API] Confidence threshold: {request.confidence_threshold}")
+    
     logger.info(f"Detection request for camera: {request.camera_id}")
     
     # Fetch camera configuration from Configuration API
@@ -106,16 +109,24 @@ async def detect_objects(request: DetectionRequest):
         print(f"[DETECTION] No detection model in configuration, using default")
     
     # Get camera object
+    print(f"[DETECTION API] Retrieving camera stream from camera manager")
     camera = camera_manager.get_camera_stream(request.camera_id)
     if not camera:
+        print(f"[DETECTION API] ERROR: Camera {request.camera_id} not found or not running")
         logger.error(f"Camera {request.camera_id} not found or not running")
         raise HTTPException(status_code=404, detail=f"Camera {request.camera_id} not found or not running")
     
+    print(f"[DETECTION API] Camera stream obtained")
+    
     # Get frame from camera
+    print(f"[DETECTION API] Retrieving frame from camera")
     frame = camera.get_frame()
     if frame is None:
+        print(f"[DETECTION API] ERROR: No frame available from camera {request.camera_id}")
         logger.error(f"No frame available from camera {request.camera_id}")
         raise HTTPException(status_code=400, detail="No frame available from camera")
+    
+    print(f"[DETECTION API] Frame retrieved successfully")
     
     # Get ROI data from camera
     roi_points = camera.roi_points
@@ -135,21 +146,14 @@ async def detect_objects(request: DetectionRequest):
         classes=request.classes
     )
     
+    print(f"[DETECTION API] Detection completed")
+    print(f"[DETECTION API]   - Total detections: {result.total_detections_count}")
+    print(f"[DETECTION API]   - ROI detections: {result.roi_detections_count}")
+    print(f"[DETECTION API]   - Processing time: {result.processing_time_ms}ms")
+    
     logger.info(f"Detection completed: {result.total_detections_count} total, {result.roi_detections_count} in ROI")
     
-    # Auto-call Usecase API for evaluation
-    print(f"[DETECTION] Auto-triggering usecase evaluation for camera: {request.camera_id}")
-    try:
-        detection_output = result.model_dump() if hasattr(result, 'model_dump') else result.dict()
-        usecase_result = evaluate_person_in_roi(
-            camera_id=request.camera_id,
-            detection_output=detection_output
-        )
-        print(f"[DETECTION] Usecase evaluation completed - Triggered: {usecase_result['usecase_triggered']}")
-    except Exception as e:
-        print(f"[DETECTION] Warning: Usecase evaluation failed - {str(e)}")
-        # Continue even if usecase fails - don't break detection API
-    
+    print(f"[DETECTION API] ✓ Detection completed\n")
     print(f"✓ detect_objects completed for {request.camera_id}")
     
     return result
