@@ -199,9 +199,13 @@ async def get_frame(
     
     **Note:** Actual frame data is passed internally to detection API
     """
+    print(f"\n[CAMERA API] GET /camera/frame/{camera_id}")
+    print(f"[CAMERA API] Request for camera: {camera_id}")
+    
     camera = camera_manager.get_camera_stream(camera_id)
     
     if not camera:
+        print(f"[CAMERA API] ERROR: Camera {camera_id} not found")
         raise HTTPException(
             status_code=404, 
             detail=f"Camera {camera_id} not found"
@@ -210,9 +214,11 @@ async def get_frame(
     try:
         if hasattr(camera, 'get_preprocessed_frame'):
             # Single camera
+            print(f"[CAMERA API] Processing single-stream camera")
             frame_data = await camera.get_preprocessed_frame()
             
             if frame_data is None:
+                print(f"[CAMERA API] ERROR: No frame available (camera initializing)")
                 raise HTTPException(
                     status_code=503, 
                     detail="No frame available yet. Camera may still be initializing."
@@ -222,6 +228,11 @@ async def get_frame(
             frame = frame_data['frame']
             _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
             frame_base64 = base64.b64encode(buffer).decode('utf-8')
+            
+            print(f"[CAMERA API] Frame encoded successfully")
+            print(f"[CAMERA API]   - Frame shape: {frame_data['shape']}")
+            print(f"[CAMERA API]   - Frame count: {frame_data['frame_count']}")
+            print(f"[CAMERA API]   - Has ROI: {frame_data['roi_points'] is not None}")
             
             response = {
                 "camera_id": camera_id,
@@ -240,16 +251,23 @@ async def get_frame(
                 })
             
             logger.info(f"✓ get_frame completed for {camera_id} (single-stream)")
+            print(f"[CAMERA API] ✓ Frame retrieval completed\n")
             return response
             
         else:
             # Multi-stream camera
+            print(f"[CAMERA API] Processing multi-stream camera")
             status = camera.get_camera_status(camera_id)
             if not status:
+                print(f"[CAMERA API] ERROR: Camera not found in multi-stream")
                 raise HTTPException(
                     status_code=404, 
                     detail="Camera not found in multi-stream"
                 )
+            
+            print(f"[CAMERA API] Multi-stream status retrieved")
+            print(f"[CAMERA API]   - Frame count: {status['frame_count']}")
+            print(f"[CAMERA API]   - Stream index: {status['stream_index']}")
             
             response = {
                 "camera_id": camera_id,
@@ -265,6 +283,7 @@ async def get_frame(
                 })
             
             logger.info(f"✓ get_frame completed for {camera_id} (multi-stream)")
+            print(f"[CAMERA API] ✓ Frame retrieval completed\n")
             return response
             
     except HTTPException:
