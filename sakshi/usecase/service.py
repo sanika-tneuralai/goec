@@ -65,6 +65,17 @@ def evaluate_usecases(camera_id: str, detection_output: Dict[str, Any], usecases
             
             results.append(result)
             
+            # Persist to database
+            try:
+                from database.persistence import persist_usecase_result
+                persist_usecase_result(
+                    camera_id=camera_id,
+                    usecase_name=usecase_id,
+                    triggered=result.triggered
+                )
+            except Exception as e:
+                print(f"[ORCHESTRATOR] DB Error: {str(e)}")
+            
         except ValueError as e:
             print(f"[ORCHESTRATOR] ERROR: {str(e)}")
             # Skip unknown usecase, don't fail entire evaluation

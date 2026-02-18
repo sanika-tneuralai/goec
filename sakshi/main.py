@@ -35,12 +35,22 @@ async def lifespan(app: FastAPI):
     # Import here to avoid circular imports
     from camera.service import camera_manager
     from common.utils import log_system_info
+    from database.connection import init_db
+    from analytics.scheduler import start_scheduler, stop_scheduler
     
     # Startup
     logger.info("=" * 60)
     logger.info("Starting Camera Management API with DeepStream")
     logger.info("=" * 60)
     log_system_info()
+    
+    # Initialize database
+    init_db()
+    logger.info("Database initialized")
+    
+    # Start analytics scheduler
+    start_scheduler()
+    logger.info("Analytics scheduler started")
     
     # Log GStreamer info
     try:
@@ -62,6 +72,10 @@ async def lifespan(app: FastAPI):
         logger.info("All cameras stopped")
     except Exception as e:
         logger.error(f"Error stopping cameras during shutdown: {str(e)}")
+    
+    # Stop scheduler
+    stop_scheduler()
+    logger.info("Analytics scheduler stopped")
     
     logger.info("API server shut down successfully")
     logger.info("✓ lifespan completed")
@@ -142,12 +156,14 @@ from detection.api import router as detection_router
 from usecase.api import router as usecase_router
 from config.api import router as config_router
 from alert.api import router as alert_router
+from analytics.api import router as analytics_router
 
 app.include_router(camera_router)
 app.include_router(detection_router)
 app.include_router(usecase_router)
 app.include_router(config_router)
 app.include_router(alert_router)
+app.include_router(analytics_router)
 
 
 # ============================================================================

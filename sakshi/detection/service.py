@@ -126,6 +126,9 @@ class DetectionService:
         
         processing_time = (time.time() - start_time) * 1000  # ms
         
+        # Persist to database
+        self._persist_detections(camera_id, detection_objects)
+        
         # Update stats
         self._update_stats(camera_id, len(detection_objects), len(roi_detections), processing_time)
         
@@ -141,6 +144,27 @@ class DetectionService:
         
         print(f"✓ DetectionService.detect completed for {camera_id}: {len(detection_objects)} detections, {len(roi_detections)} in ROI")
         return response
+    
+    def _persist_detections(self, camera_id: str, detections: List[Detection]):
+        """Persist detections to database"""
+        try:
+            from database.persistence import persist_camera, persist_detection
+            
+            # Ensure camera exists
+            persist_camera(camera_id)
+            
+            # Persist each detection
+            for det in detections:
+                persist_detection(
+                    camera_id=camera_id,
+                    object_type=det.class_name,
+                    confidence=det.confidence,
+                    inside_roi=det.in_roi
+                )
+            
+            print(f"[DB] Persisted {len(detections)} detections for camera {camera_id}")
+        except Exception as e:
+            print(f"[DB] Error persisting detections: {str(e)}")
     
     def _update_stats(self, camera_id: str, total_dets: int, roi_dets: int, proc_time: float):
         """Update detection statistics"""

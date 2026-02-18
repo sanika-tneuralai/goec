@@ -71,6 +71,18 @@ def process_pipeline_alerts(request: PipelineAlertRequest) -> PipelineAlertRespo
                 message=message
             ))
             print(f"[SERVICE]   - Alert sent successfully")
+            
+            # Persist to database
+            try:
+                from database.persistence import persist_alert
+                persist_alert(
+                    camera_id=request.camera_id,
+                    usecase_name=usecase_id,
+                    alert_type=alert_type,
+                    status='sent'
+                )
+            except Exception as e:
+                print(f"[SERVICE] DB Error: {str(e)}")
         else:
             print(f"[SERVICE]   - Alert conditions not met, no alert sent")
     
