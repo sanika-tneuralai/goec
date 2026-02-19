@@ -24,6 +24,7 @@ class Detection(Base):
     object_type = Column(String(50), nullable=False)
     confidence = Column(Float, nullable=False)
     inside_roi = Column(Boolean, nullable=False, default=False)
+    screenshot_path = Column(String(500), nullable=True)
 
 
 class UsecaseResult(Base):
@@ -46,6 +47,7 @@ class Alert(Base):
     alert_type = Column(String(50), nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     status = Column(String(20), nullable=False)  # 'sent' or 'failed'
+    screenshot_path = Column(String(500), nullable=True)
 
 
 class AnalyticsDaily(Base):

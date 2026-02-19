@@ -33,7 +33,9 @@ def evaluate_usecases(camera_id: str, detection_output: Dict[str, Any], usecases
     print(f"[ORCHESTRATOR] Usecases: {', '.join(usecases)}")
     
     detections = detection_output.get("detections", [])
+    screenshot_path = detection_output.get("screenshot_path")
     print(f"[ORCHESTRATOR] Detection output contains: {len(detections)} detections")
+    print(f"[ORCHESTRATOR] Screenshot path: {screenshot_path}")
     print(f"[ORCHESTRATOR] Detection will be evaluated ONCE for ALL usecases")
     print(f"[ORCHESTRATOR] ============================================================\n")
     
@@ -56,7 +58,8 @@ def evaluate_usecases(camera_id: str, detection_output: Dict[str, Any], usecases
                 usecase_id=usecase_id,
                 triggered=evaluation_result["triggered"],
                 matched_count=len(evaluation_result["matched_objects"]),
-                matched_objects=evaluation_result["matched_objects"]
+                matched_objects=evaluation_result["matched_objects"],
+                screenshot_path=screenshot_path
             )
             
             print(f"[ORCHESTRATOR] Usecase '{usecase_id}' result:")

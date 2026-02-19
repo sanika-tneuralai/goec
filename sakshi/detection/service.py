@@ -3,6 +3,8 @@ Detection service - YOLO model integration with ROI filtering.
 """
 import logging
 import time
+import os
+import cv2
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 import numpy as np
@@ -10,7 +12,7 @@ import numpy as np
 from detection.device import select_device
 from detection.roi import filter_detections_by_roi
 from detection.schemas import Detection, DetectionResponse, BoundingBox, DetectionStats
-from common.config import YOLO_MODEL_PATH, DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_IOU_THRESHOLD
+from common.config import YOLO_MODEL_PATH, DEFAULT_CONFIDENCE_THRESHOLD, DEFAULT_IOU_THRESHOLD, SCREENSHOTS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,37 @@ class DetectionService:
         except Exception as e:
             logger.error(f"Failed to load YOLO model: {e}")
             raise
+    
+    def _save_screenshot(self, frame: np.ndarray, camera_id: str) -> Optional[str]:
+        """
+        Save detection frame as screenshot.
+        
+        Args:
+            frame: Frame to save
+            camera_id: Camera identifier
+            
+        Returns:
+            Screenshot file path or None if save failed
+        """
+        try:
+            # Ensure screenshots directory exists
+            os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
+            
+            # Generate filename: camera_id_timestamp.jpg
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+            filename = f"{camera_id}_{timestamp}.jpg"
+            filepath = os.path.join(SCREENSHOTS_DIR, filename)
+            
+            # Save frame as JPEG
+            cv2.imwrite(filepath, frame)
+            
+            logger.info(f"Screenshot saved: {filepath}")
+            return filepath
+            
+        except Exception as e:
+            logger.error(f"Failed to save screenshot: {e}")
+            print(f"[SCREENSHOT] Error saving screenshot: {str(e)}")
+            return None
     
     def detect(
         self,
@@ -126,8 +159,14 @@ class DetectionService:
         
         processing_time = (time.time() - start_time) * 1000  # ms
         
+        # Save screenshot if detections found
+        screenshot_path = None
+        if len(detection_objects) > 0:
+            screenshot_path = self._save_screenshot(frame, camera_id)
+            print(f"[SCREENSHOT] Screenshot saved: {screenshot_path}")
+        
         # Persist to database
-        self._persist_detections(camera_id, detection_objects)
+        self._persist_detections(camera_id, detection_objects, screenshot_path)
         
         # Update stats
         self._update_stats(camera_id, len(detection_objects), len(roi_detections), processing_time)
@@ -139,13 +178,14 @@ class DetectionService:
             detections=detection_objects,
             roi_detections_count=len(roi_detections),
             total_detections_count=len(detection_objects),
-            processing_time_ms=processing_time
+            processing_time_ms=processing_time,
+            screenshot_path=screenshot_path
         )
         
         print(f"✓ DetectionService.detect completed for {camera_id}: {len(detection_objects)} detections, {len(roi_detections)} in ROI")
         return response
     
-    def _persist_detections(self, camera_id: str, detections: List[Detection]):
+    def _persist_detections(self, camera_id: str, detections: List[Detection], screenshot_path: Optional[str] = None):
         """Persist detections to database"""
         try:
             from database.persistence import persist_camera, persist_detection
@@ -159,7 +199,8 @@ class DetectionService:
                     camera_id=camera_id,
                     object_type=det.class_name,
                     confidence=det.confidence,
-                    inside_roi=det.in_roi
+                    inside_roi=det.in_roi,
+                    screenshot_path=screenshot_path
                 )
             
             print(f"[DB] Persisted {len(detections)} detections for camera {camera_id}")

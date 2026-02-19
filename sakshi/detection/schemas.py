@@ -40,6 +40,7 @@ class DetectionResponse(BaseModel):
     roi_detections_count: int = Field(..., description="Number of detections inside ROI")
     total_detections_count: int = Field(..., description="Total number of detections")
     processing_time_ms: float = Field(..., description="Detection processing time in milliseconds")
+    screenshot_path: Optional[str] = Field(None, description="Path to detection screenshot")
 
 
 class DetectionStats(BaseModel):

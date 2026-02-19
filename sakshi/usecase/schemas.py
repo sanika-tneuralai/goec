@@ -18,6 +18,7 @@ class UsecaseResult(BaseModel):
     triggered: bool = Field(..., description="Whether usecase was triggered")
     matched_count: int = Field(..., description="Number of matched objects")
     matched_objects: List[dict] = Field(default_factory=list, description="Objects that matched the rule")
+    screenshot_path: Optional[str] = Field(None, description="Path to detection screenshot")
 
 
 class UsecaseResponse(BaseModel):
