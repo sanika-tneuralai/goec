@@ -47,6 +47,7 @@ class Alert(Base):
     alert_type = Column(String(50), nullable=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     status = Column(String(20), nullable=False)  # 'sent' or 'failed'
+    detection_id = Column(Integer, ForeignKey("detections.detection_id"), nullable=True)
     screenshot_path = Column(String(500), nullable=True)
 
 

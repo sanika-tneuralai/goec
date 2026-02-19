@@ -56,3 +56,6 @@ models/*.weights
 # OS
 Thumbs.db
 .DS_Store
+
+screenshots/
+test/

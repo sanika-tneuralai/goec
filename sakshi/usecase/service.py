@@ -34,8 +34,10 @@ def evaluate_usecases(camera_id: str, detection_output: Dict[str, Any], usecases
     
     detections = detection_output.get("detections", [])
     screenshot_path = detection_output.get("screenshot_path")
+    first_detection_id = detection_output.get("first_detection_id")
     print(f"[ORCHESTRATOR] Detection output contains: {len(detections)} detections")
     print(f"[ORCHESTRATOR] Screenshot path: {screenshot_path}")
+    print(f"[ORCHESTRATOR] First detection ID: {first_detection_id}")
     print(f"[ORCHESTRATOR] Detection will be evaluated ONCE for ALL usecases")
     print(f"[ORCHESTRATOR] ============================================================\n")
     
@@ -59,6 +61,7 @@ def evaluate_usecases(camera_id: str, detection_output: Dict[str, Any], usecases
                 triggered=evaluation_result["triggered"],
                 matched_count=len(evaluation_result["matched_objects"]),
                 matched_objects=evaluation_result["matched_objects"],
+                detection_id=first_detection_id,
                 screenshot_path=screenshot_path
             )
             
@@ -74,7 +77,8 @@ def evaluate_usecases(camera_id: str, detection_output: Dict[str, Any], usecases
                 persist_usecase_result(
                     camera_id=camera_id,
                     usecase_name=usecase_id,
-                    triggered=result.triggered
+                    triggered=result.triggered,
+                    detection_id=first_detection_id
                 )
             except Exception as e:
                 print(f"[ORCHESTRATOR] DB Error: {str(e)}")

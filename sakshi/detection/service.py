@@ -165,8 +165,8 @@ class DetectionService:
             screenshot_path = self._save_screenshot(frame, camera_id)
             print(f"[SCREENSHOT] Screenshot saved: {screenshot_path}")
         
-        # Persist to database
-        self._persist_detections(camera_id, detection_objects, screenshot_path)
+        # Persist to database and get first detection_id
+        first_detection_id = self._persist_detections(camera_id, detection_objects, screenshot_path)
         
         # Update stats
         self._update_stats(camera_id, len(detection_objects), len(roi_detections), processing_time)
@@ -179,14 +179,16 @@ class DetectionService:
             roi_detections_count=len(roi_detections),
             total_detections_count=len(detection_objects),
             processing_time_ms=processing_time,
+            first_detection_id=first_detection_id,
             screenshot_path=screenshot_path
         )
         
         print(f"✓ DetectionService.detect completed for {camera_id}: {len(detection_objects)} detections, {len(roi_detections)} in ROI")
         return response
     
-    def _persist_detections(self, camera_id: str, detections: List[Detection], screenshot_path: Optional[str] = None):
-        """Persist detections to database"""
+    def _persist_detections(self, camera_id: str, detections: List[Detection], screenshot_path: Optional[str] = None) -> Optional[int]:
+        """Persist detections to database and return first detection_id"""
+        first_detection_id = None
         try:
             from database.persistence import persist_camera, persist_detection
             
@@ -194,18 +196,23 @@ class DetectionService:
             persist_camera(camera_id)
             
             # Persist each detection
-            for det in detections:
-                persist_detection(
+            for idx, det in enumerate(detections):
+                detection_id = persist_detection(
                     camera_id=camera_id,
                     object_type=det.class_name,
                     confidence=det.confidence,
                     inside_roi=det.in_roi,
                     screenshot_path=screenshot_path
                 )
+                # Capture first detection_id
+                if idx == 0 and detection_id:
+                    first_detection_id = detection_id
             
             print(f"[DB] Persisted {len(detections)} detections for camera {camera_id}")
         except Exception as e:
             print(f"[DB] Error persisting detections: {str(e)}")
+        
+        return first_detection_id
     
     def _update_stats(self, camera_id: str, total_dets: int, roi_dets: int, proc_time: float):
         """Update detection statistics"""

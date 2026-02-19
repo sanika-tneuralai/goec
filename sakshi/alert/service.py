@@ -24,11 +24,13 @@ def process_pipeline_alerts(request: PipelineAlertRequest) -> PipelineAlertRespo
         triggered = result.get('triggered', False)
         matched_count = result.get('matched_count', 0)
         matched_objects = result.get('matched_objects', [])
+        detection_id = result.get('detection_id')
         screenshot_path = result.get('screenshot_path')
         
         print(f"\n[SERVICE] Processing usecase: {usecase_id}")
         print(f"[SERVICE]   - Triggered: {triggered}")
         print(f"[SERVICE]   - Matched count: {matched_count}")
+        print(f"[SERVICE]   - Detection ID: {detection_id}")
         print(f"[SERVICE]   - Screenshot path: {screenshot_path}")
         
         if not triggered:
@@ -82,8 +84,10 @@ def process_pipeline_alerts(request: PipelineAlertRequest) -> PipelineAlertRespo
                     usecase_name=usecase_id,
                     alert_type=alert_type,
                     status='sent',
+                    detection_id=detection_id,
                     screenshot_path=screenshot_path
                 )
+                print(f"[SERVICE]   - Alert persisted with detection_id={detection_id}")
             except Exception as e:
                 print(f"[SERVICE] DB Error: {str(e)}")
         else:

@@ -95,7 +95,7 @@ def persist_usecase_result(camera_id: str, usecase_name: str, triggered: bool, d
         db.close()
 
 
-def persist_alert(camera_id: str, usecase_name: str, alert_type: str, status: str = 'sent', screenshot_path: str = None):
+def persist_alert(camera_id: str, usecase_name: str, alert_type: str, status: str = 'sent', detection_id: int = None, screenshot_path: str = None):
     """
     Persist alert to database.
     
@@ -104,6 +104,7 @@ def persist_alert(camera_id: str, usecase_name: str, alert_type: str, status: st
         usecase_name: Usecase name that triggered alert
         alert_type: Type of alert
         status: Alert status ('sent' or 'failed')
+        detection_id: ID of associated detection (optional)
         screenshot_path: Path to detection screenshot (optional)
     """
     db = SessionLocal()
@@ -113,6 +114,7 @@ def persist_alert(camera_id: str, usecase_name: str, alert_type: str, status: st
             usecase_name=usecase_name,
             alert_type=alert_type,
             status=status,
+            detection_id=detection_id,
             screenshot_path=screenshot_path
         )
         db.add(alert)
