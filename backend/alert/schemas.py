@@ -44,3 +44,20 @@ class PipelineAlertResponse(BaseModel):
     total_alerts_sent: int
     alerts_sent: List[AlertDetail]
 
+
+class AlertRecord(BaseModel):
+    """Alert record from database"""
+    alert_id: int
+    camera_id: str
+    usecase_name: str
+    alert_type: str
+    timestamp: str
+    status: str
+    screenshot_path: str = None
+
+
+class AlertListResponse(BaseModel):
+    """Response for alert list"""
+    alerts: List[AlertRecord]
+    total: int
+
