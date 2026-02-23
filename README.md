@@ -1,4 +1,4 @@
-# GOEC - Generic Object Event Classifier
+
 
 This is a comprehensive camera management and analytics system using DeepStream and YOLO.
 
