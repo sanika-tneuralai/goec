@@ -4,6 +4,7 @@ yolo_clean/
 venv/
 env/
 ENV/
+.genv
 .venv
 .env.example
 
