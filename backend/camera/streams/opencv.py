@@ -94,14 +94,14 @@ class OpenCVCamera:
             
             # Set FFmpeg options for RTSP
             # Use TCP transport (more reliable than UDP for problematic networks)
-            os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp|max_delay;500000'
+            os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'rtsp_transport;tcp|max_delay;500000|stimeout;30000000'
             
             # Open with OpenCV + FFmpeg backend with RTSP options
             # Use TCP transport for better reliability (UDP can drop packets)
             # Set timeout to prevent hanging
             self.cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG, [
-                cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000,  # 10 second connection timeout
-                cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000,   # 10 second read timeout
+                cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 30000,  # 30 second connection timeout
+                cv2.CAP_PROP_READ_TIMEOUT_MSEC, 30000,   # 30 second read timeout
             ])
             
             # Configure for RTSP
@@ -111,11 +111,17 @@ class OpenCVCamera:
             if not self.cap.isOpened():
                 raise Exception("Failed to open RTSP stream")
             
-            # Test read
+            logger.info(f"[{self.camera_id}] Stream opened, attempting first frame read...")
+            
+            # Test read with retry
             ret, test_frame = self.cap.read()
-            # print(f'**************{ret}, {test_frame}')
             if not ret:
-                raise Exception("Failed to read first frame from stream")
+                logger.warning(f"[{self.camera_id}] First frame read failed, retrying...")
+                await asyncio.sleep(2)
+                ret, test_frame = self.cap.read()
+            
+            if not ret:
+                raise Exception("Failed to read first frame from stream after retry")
             
             logger.info(f"[{self.camera_id}] Stream opened successfully, frame shape: {test_frame.shape}")
             
