@@ -157,6 +157,7 @@ from usecase.api import router as usecase_router
 from config.api import router as config_router
 from alert.api import router as alert_router
 from analytics.api import router as analytics_router
+from edge_ingest.api import router as edge_ingest_router
 
 app.include_router(camera_router)
 app.include_router(detection_router)
@@ -164,6 +165,7 @@ app.include_router(usecase_router)
 app.include_router(config_router)
 app.include_router(alert_router)
 app.include_router(analytics_router)
+app.include_router(edge_ingest_router)
 
 
 # ============================================================================
