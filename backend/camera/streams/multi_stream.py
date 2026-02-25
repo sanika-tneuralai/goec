@@ -63,7 +63,7 @@ class MultiStreamManager:
         
         # Hardware decoder
         decoder = Gst.ElementFactory.make("nvv4l2decoder", f"decoder-{index}")
-        decoder.set_property("enable-max-performance", 1)
+        # decoder.set_property("enable-max-performance", 1)
         decoder.set_property("drop-frame-interval", 0)
         decoder.set_property("num-extra-surfaces", 1)
         
