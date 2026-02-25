@@ -99,7 +99,7 @@ def process_detection_background(camera_id: str, camera_name: Optional[str], det
 
 
 @router.post("/ingest")
-async def ingest_edge_detection(payload: EdgeInput, background_tasks: BackgroundTasks):
+async def ingest_edge_detection(payload: EdgeInput, background_tasks: BackgroundTasks, usecases: Optional[str] = None):
     """
     Receive detection output from edge device and forward to usecase pipeline.
     
@@ -109,13 +109,17 @@ async def ingest_edge_detection(payload: EdgeInput, background_tasks: Background
     - Processes DB persistence and usecase evaluation in background
     
     Required fields: camera_id, timestamp, frame_id, person_count, object_count
-    Optional: usecases (if not provided, must be specified in query param or returns error)
+    Optional: usecases (defaults to ["person_in_roi"] if not provided)
     """
     global _ingest_count, _last_log_time
     
-    # Validate usecases specified
-    if not payload.usecases or len(payload.usecases) == 0:
-        raise HTTPException(status_code=400, detail="'usecases' field is required and must contain at least one usecase ID")
+    # Use usecases from payload, or query param, or default
+    usecase_list = payload.usecases
+    if not usecase_list or len(usecase_list) == 0:
+        if usecases:
+            usecase_list = [uc.strip() for uc in usecases.split(",")]
+        else:
+            usecase_list = ["person_in_roi"]  # Default usecase
     
     # Map edge format to internal detection format
     try:
@@ -182,7 +186,7 @@ async def ingest_edge_detection(payload: EdgeInput, background_tasks: Background
             camera_id=payload.camera_id,
             camera_name=payload.camera_name,
             detection_output=detection_output,
-            usecases=payload.usecases
+            usecases=usecase_list
         )
         
         # Periodic logging (not per-frame)
