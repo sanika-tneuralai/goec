@@ -8,10 +8,15 @@ def process_pipeline_alerts(request: PipelineAlertRequest) -> PipelineAlertRespo
     """
     Process multiple usecase results and send appropriate alerts.
     
+    This function is a pure downstream consumer of usecase evaluation results.
+    It does NOT re-evaluate rules or apply additional conditions.
+    
     Alert Rules:
     - person_in_roi: Send alert if triggered=True
-    - crowd_in_roi: Send alert if triggered=True and matched_count >= 3
+    - crowd_in_roi: Send alert if triggered=True
     - restricted_zone_breach: Send alert if triggered=True
+    
+    All business logic (thresholds, ROI checks, etc.) is handled by usecase rules.
     """
     print(f"\n[SERVICE] ============== FUNCTION ENTRY: process_pipeline_alerts ==============")
     print(f"[SERVICE] Processing alerts for camera_id={request.camera_id}")
@@ -37,30 +42,24 @@ def process_pipeline_alerts(request: PipelineAlertRequest) -> PipelineAlertRespo
             print(f"[SERVICE]   - Not triggered, skipping alert")
             continue
         
-        # Determine alert type and whether to send
-        send_alert = False
+        # Map usecase to alert type and generate message
+        # If triggered=True, we trust the usecase evaluation completely
         alert_type = ""
         message = ""
         
         if usecase_id == "person_in_roi":
-            send_alert = True
             alert_type = "person_detected"
             message = f"Person detected inside ROI. Count: {matched_count}"
             
         elif usecase_id == "crowd_in_roi":
-            if matched_count >= 3:
-                send_alert = True
-                alert_type = "crowd_detected"
-                message = f"Crowd detected inside ROI. Count: {matched_count}"
-            else:
-                print(f"[SERVICE]   - Crowd count ({matched_count}) below threshold (3), no alert")
+            alert_type = "crowd_detected"
+            message = f"Crowd detected inside ROI. Count: {matched_count}"
                 
         elif usecase_id == "restricted_zone_breach":
-            send_alert = True
             alert_type = "restricted_zone_breach"
             message = f"Restricted zone breach detected. Count: {matched_count}"
         
-        if send_alert:
+        if alert_type:
             print(f"\n[ALERT] ⚠️  ALERT TRIGGERED ⚠️")
             print(f"[ALERT] Camera: {request.camera_id}")
             print(f"[ALERT] Usecase: {usecase_id}")
@@ -90,8 +89,6 @@ def process_pipeline_alerts(request: PipelineAlertRequest) -> PipelineAlertRespo
                 print(f"[SERVICE]   - Alert persisted with detection_id={detection_id}")
             except Exception as e:
                 print(f"[SERVICE] DB Error: {str(e)}")
-        else:
-            print(f"[SERVICE]   - Alert conditions not met, no alert sent")
     
     response = PipelineAlertResponse(
         camera_id=request.camera_id,

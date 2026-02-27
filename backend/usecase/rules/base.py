@@ -17,15 +17,17 @@ class BaseUsecaseRule(ABC):
     - Never call external APIs
     """
     
-    def __init__(self, usecase_id: str):
+    def __init__(self, usecase_id: str, roi: str = None):
         """
         Initialize the usecase rule.
         
         Args:
             usecase_id: Unique identifier for this usecase
+            roi: ROI configuration from database (JSON string or None)
         """
         self.usecase_id = usecase_id
-        print(f"[RULE] Initialized rule: {usecase_id}")
+        self.roi = roi
+        print(f"[RULE] Initialized rule: {usecase_id} (ROI: {roi})")
     
     @abstractmethod
     def evaluate(self, detection_output: Dict[str, Any]) -> Dict[str, Any]:

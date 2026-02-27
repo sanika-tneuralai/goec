@@ -1,0 +1,3 @@
+"""
+Edge device ingest module.
+"""

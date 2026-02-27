@@ -1,7 +1,7 @@
 """
 Database models for Analytics & Reporting.
 """
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Date, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Date, ForeignKey, UniqueConstraint, JSON
 from sqlalchemy.sql import func
 from database.connection import Base
 
@@ -32,10 +32,12 @@ class UsecaseResult(Base):
     
     result_id = Column(Integer, primary_key=True, autoincrement=True)
     camera_id = Column(String(255), ForeignKey("cameras.camera_id"), nullable=False, index=True)
-    usecase_name = Column(String(100), nullable=False)
+    usecase_name = Column(String(100), nullable=False, index=True)
     detection_id = Column(Integer, ForeignKey("detections.detection_id"), nullable=True)
     triggered = Column(Boolean, nullable=False, default=False)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    frame_id = Column(Integer, nullable=True)
+    result_metadata = Column(JSON, nullable=True)
 
 
 class Alert(Base):
@@ -49,6 +51,21 @@ class Alert(Base):
     status = Column(String(20), nullable=False)  # 'sent' or 'failed'
     detection_id = Column(Integer, ForeignKey("detections.detection_id"), nullable=True)
     screenshot_path = Column(String(500), nullable=True)
+
+
+class UsecaseConfig(Base):
+    __tablename__ = "usecase_config"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    camera_id = Column(String(255), ForeignKey("cameras.camera_id"), nullable=False, index=True)
+    usecase_name = Column(String(100), nullable=False)
+    enabled = Column(Boolean, nullable=False, default=True)
+    roi = Column(String, nullable=True)  # JSON or geometry data
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    __table_args__ = (
+        UniqueConstraint('camera_id', 'usecase_name', name='uix_camera_usecase'),
+    )
 
 
 class AnalyticsDaily(Base):

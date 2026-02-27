@@ -2,9 +2,10 @@
 Database persistence helpers.
 """
 from datetime import datetime
+from typing import List, Dict, Any
 from sqlalchemy.dialects.postgresql import insert
 from database.connection import SessionLocal
-from database.models import Camera, Detection, UsecaseResult, Alert
+from database.models import Camera, Detection, UsecaseResult, Alert, UsecaseConfig
 
 
 def persist_camera(camera_id: str, name: str = None, location: str = None):
@@ -68,7 +69,7 @@ def persist_detection(camera_id: str, object_type: str, confidence: float, insid
         db.close()
 
 
-def persist_usecase_result(camera_id: str, usecase_name: str, triggered: bool, detection_id: int = None):
+def persist_usecase_result(camera_id: str, usecase_name: str, triggered: bool, detection_id: int = None, frame_id: int = None, metadata: dict = None):
     """
     Persist usecase evaluation result.
     
@@ -77,6 +78,8 @@ def persist_usecase_result(camera_id: str, usecase_name: str, triggered: bool, d
         usecase_name: Usecase name
         triggered: Whether usecase was triggered
         detection_id: Associated detection ID (optional)
+        frame_id: Frame ID (optional)
+        metadata: Usecase-specific metadata (optional)
     """
     db = SessionLocal()
     try:
@@ -84,7 +87,9 @@ def persist_usecase_result(camera_id: str, usecase_name: str, triggered: bool, d
             camera_id=camera_id,
             usecase_name=usecase_name,
             detection_id=detection_id,
-            triggered=triggered
+            triggered=triggered,
+            frame_id=frame_id,
+            result_metadata=metadata
         )
         db.add(result)
         db.commit()
@@ -122,5 +127,37 @@ def persist_alert(camera_id: str, usecase_name: str, alert_type: str, status: st
     except Exception as e:
         db.rollback()
         print(f"[DB] Error persisting alert: {str(e)}")
+    finally:
+        db.close()
+
+
+def get_enabled_usecases(camera_id: str) -> List[Dict[str, Any]]:
+    """
+    Get all enabled usecases for a camera.
+    
+    Args:
+        camera_id: Camera identifier
+        
+    Returns:
+        List of usecase configurations (dicts with usecase_name, enabled, roi fields)
+    """
+    db = SessionLocal()
+    try:
+        configs = db.query(UsecaseConfig).filter(
+            UsecaseConfig.camera_id == camera_id,
+            UsecaseConfig.enabled == True
+        ).all()
+        
+        return [
+            {
+                "usecase_name": config.usecase_name,
+                "enabled": config.enabled,
+                "roi": config.roi
+            }
+            for config in configs
+        ]
+    except Exception as e:
+        print(f"[DB] Error fetching usecase configs: {str(e)}")
+        return []
     finally:
         db.close()

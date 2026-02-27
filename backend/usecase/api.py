@@ -1,5 +1,5 @@
 """
-Usecase API endpoints.
+Usecase API endpoints - database-driven camera-to-usecase dispatcher.
 """
 from fastapi import APIRouter, HTTPException
 
@@ -13,94 +13,82 @@ router = APIRouter(prefix="/usecase", tags=["usecase"])
 @router.post("/evaluate", response_model=UsecaseResponse)
 def evaluate_usecase(request: UsecaseRequest):
     """
-    Evaluate multiple usecases against detection output.
+    Evaluate usecases for a camera using database-driven configuration.
     
-    **Scalable Multi-Usecase Architecture:**
-    - Accepts ONE detection output
-    - Evaluates MULTIPLE usecases in single request
-    - Returns results for ALL usecases
-    - Detection runs ONCE, usecases run on same data
+    **Database-Driven Usecase Dispatcher:**
+    - Accepts camera_id and detection output
+    - Queries database for enabled usecases for that camera
+    - Evaluates all enabled usecases on the detection data
+    - Returns aggregated results
     
     **Process:**
-    1. Takes detection API output as input
-    2. Evaluates each requested usecase independently
-    3. Returns aggregated results for all usecases
+    1. Query `usecase_config` table for camera's enabled usecases
+    2. Route detection data to appropriate usecase handlers
+    3. Return results for all evaluated usecases
     
     **Request Body:**
     - **camera_id**: Camera identifier
     - **detection_output**: Complete detection API response JSON
-    - **usecases**: List of usecase IDs to evaluate (e.g., ["person_in_roi", "crowd_in_roi"])
     
     **Response:**
     - **camera_id**: Camera identifier
-    - **results**: List of results, one per usecase
+    - **results**: List of results, one per enabled usecase
     
-    **Available Usecases:**
-    - person_in_roi: Triggers when any person is detected in ROI
-    - crowd_in_roi: Triggers when 3+ persons are detected in ROI
-    - restricted_zone_breach: Triggers when any vehicle is detected in ROI
+    **Configuration:**
+    - Usecases are configured in the `usecase_config` table
+    - Each camera can have multiple enabled usecases
+    - Adding a new camera requires only database configuration
+    - Adding a new usecase requires only registering a handler
     
     **Example Request:**
     ```json
     {
       "camera_id": "s1_cam_1",
-      "detection_output": {...},
-      "usecases": ["person_in_roi", "crowd_in_roi"]
+      "detection_output": {...}
     }
     ```
     """
-    print(f"\n[API] ====================================================================")
-    print(f"[API] USECASE API - MULTI-USECASE EVALUATION")
-    print(f"[API] ====================================================================")
-    print(f"[API] Endpoint: POST /usecase/evaluate")
-    print(f"[API] Request received")
-    print(f"[API] Camera ID: {request.camera_id}")
-    print(f"[API] Usecases requested: {len(request.usecases)}")
-    print(f"[API] Usecase IDs: {', '.join(request.usecases)}")
+    print(f"\n[USECASE API] ==========================================================")
+    print(f"[USECASE API] DATABASE-DRIVEN USECASE EVALUATION")
+    print(f"[USECASE API] ==========================================================")
+    print(f"[USECASE API] Endpoint: POST /usecase/evaluate")
+    print(f"[USECASE API] Camera ID: {request.camera_id}")
     
     num_detections = len(request.detection_output.get('detections', [])) if isinstance(request.detection_output, dict) else 0
-    print(f"[API] Detection output contains: {num_detections} detection(s)")
-    print(f"[API] ====================================================================\n")
-    
-    if not request.usecases or len(request.usecases) == 0:
-        print(f"[API] ERROR: No usecases specified in request")
-        raise HTTPException(status_code=400, detail="At least one usecase must be specified")
+    print(f"[USECASE API] Detection output: {num_detections} detection(s)")
+    print(f"[USECASE API] Dispatching to database-driven usecase service...")
+    print(f"[USECASE API] ==========================================================\n")
     
     try:
-        print(f"[API] Calling orchestrator: evaluate_usecases()")
-        print(f"[API] This will evaluate {len(request.usecases)} usecase(s) on the SAME detection output")
-        
-        # Call service orchestrator to evaluate all usecases
+        # Call database-driven usecase dispatcher
         result = evaluate_usecases(
             camera_id=request.camera_id,
-            detection_output=request.detection_output,
-            usecases=request.usecases
+            detection_output=request.detection_output
         )
         
-        print(f"\n[API] ====================================================================")
-        print(f"[API] ORCHESTRATOR COMPLETED")
-        print(f"[API] ====================================================================")
-        print(f"[API] Results received for {len(result['results'])} usecase(s)")
+        print(f"\n[USECASE API] ==========================================================")
+        print(f"[USECASE API] DISPATCHER COMPLETED")
+        print(f"[USECASE API] ==========================================================")
+        print(f"[USECASE API] Results received: {len(result['results'])} usecase(s)")
         
         triggered_count = sum(1 for r in result['results'] if r.triggered)
-        print(f"[API] Triggered usecases: {triggered_count}/{len(result['results'])}")
+        print(f"[USECASE API] Triggered usecases: {triggered_count}/{len(result['results'])}")
         
         for uc_result in result['results']:
             status = "✓ TRIGGERED" if uc_result.triggered else "✗ Not triggered"
-            print(f"[API]   - {uc_result.usecase_id}: {status} ({uc_result.matched_count} matches)")
+            print(f"[USECASE API]   - {uc_result.usecase_id}: {status} ({uc_result.matched_count} matches)")
         
-        print(f"[API] Returning multi-usecase response")
-        print(f"[API] Response status: 200 OK")
-        print(f"[API] ====================================================================\n")
+        print(f"[USECASE API] Response status: 200 OK")
+        print(f"[USECASE API] ==========================================================\n")
         
         return result
         
     except Exception as e:
-        print(f"\n[API] !!!!! EXCEPTION CAUGHT !!!!!")
-        print(f"[API] ERROR: Usecase evaluation failed")
-        print(f"[API] Exception type: {type(e).__name__}")
-        print(f"[API] Exception message: {str(e)}")
-        print(f"[API] Raising HTTPException with status 500")
-        print(f"[API] ====================================================================\n")
+        print(f"\n[USECASE API] !!!!! EXCEPTION CAUGHT !!!!!")
+        print(f"[USECASE API] ERROR: Usecase evaluation failed")
+        print(f"[USECASE API] Exception type: {type(e).__name__}")
+        print(f"[USECASE API] Exception message: {str(e)}")
+        print(f"[USECASE API] Raising HTTPException with status 500")
+        print(f"[USECASE API] ==========================================================\n")
         raise HTTPException(status_code=500, detail=f"Usecase evaluation failed: {str(e)}")
 

@@ -8,12 +8,14 @@ from typing import Optional
 from analytics.schemas import (
     DailyAnalyticsResponse, DailyAnalytics,
     AlertAnalyticsResponse, AlertAnalytics,
-    DetectionAnalyticsResponse, DetectionAnalytics
+    DetectionAnalyticsResponse, DetectionAnalytics,
+    PeopleCountAnalyticsResponse, PeopleCountRecord
 )
 from analytics.service import (
     get_daily_analytics,
     get_alert_analytics,
-    get_detection_analytics
+    get_detection_analytics,
+    get_people_count_analytics
 )
 
 
@@ -140,4 +142,57 @@ def get_detections(
     return DetectionAnalyticsResponse(
         data=data,
         total_records=len(data)
+    )
+
+
+@router.get("/people-count", response_model=PeopleCountAnalyticsResponse)
+def get_people_count(
+    camera_id: Optional[str] = Query(None, description="Filter by camera ID"),
+    start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)")
+):
+    """
+    Get people count analytics from usecase evaluations.
+    
+    **Filters:**
+    - **camera_id**: Filter by specific camera
+    - **start_date**: Start date for date range
+    - **end_date**: End date for date range
+    
+    **Response:**
+    - Time-series people count data with statistics (avg, min, max)
+    """
+    print(f"\n[API] GET /analytics/people-count called")
+    print(f"[API] Filters: camera_id={camera_id}, start_date={start_date}, end_date={end_date}")
+    
+    results = get_people_count_analytics(camera_id, start_date, end_date)
+    
+    data = []
+    counts = []
+    
+    for r in results:
+        people_count = r.result_metadata.get('people_count', 0) if r.result_metadata else 0
+        counts.append(people_count)
+        
+        data.append(PeopleCountRecord(
+            timestamp=r.timestamp,
+            camera_id=r.camera_id,
+            frame_id=r.frame_id,
+            people_count=people_count
+        ))
+    
+    # Calculate statistics
+    avg_count = sum(counts) / len(counts) if counts else 0.0
+    max_count = max(counts) if counts else 0
+    min_count = min(counts) if counts else 0
+    
+    print(f"[API] Returning {len(data)} people_count records")
+    print(f"[API] Stats: avg={avg_count:.1f}, min={min_count}, max={max_count}\n")
+    
+    return PeopleCountAnalyticsResponse(
+        data=data,
+        total_records=len(data),
+        average_count=round(avg_count, 2),
+        max_count=max_count,
+        min_count=min_count
     )

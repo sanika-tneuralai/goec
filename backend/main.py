@@ -190,7 +190,10 @@ class PipelineRequest(BaseModel):
 @app.post("/pipeline/execute", tags=["pipeline"])
 def execute_pipeline(request: PipelineRequest):
     """
-    Orchestrate the complete pipeline: Camera → Detection → Usecase → Alert
+    Orchestrate the LOCAL/INTERNAL pipeline: Camera → Detection → Usecase → Alert
+    
+    ⚠️ MODE: Local/Internal (camera + detection run on server)
+    For edge devices, use /pipeline/execute-edge instead.
     
     This is the ONLY place where pipeline logic exists.
     Each API is called independently via HTTP.
@@ -210,8 +213,9 @@ def execute_pipeline(request: PipelineRequest):
     ```
     """
     print("\n" + "="*80)
-    print("[ORCHESTRATOR] PIPELINE EXECUTION STARTED")
+    print("[ORCHESTRATOR] LOCAL PIPELINE EXECUTION STARTED")
     print("="*80)
+    print(f"[ORCHESTRATOR] Mode: LOCAL (camera + detection on server)")
     print(f"[ORCHESTRATOR] Camera ID: {request.camera_id}")
     print(f"[ORCHESTRATOR] Usecases: {request.usecases or ['person_in_roi', 'crowd_in_roi', 'restricted_zone_breach']}")
     print(f"[ORCHESTRATOR] Confidence Threshold: {request.confidence_threshold}")
@@ -372,6 +376,167 @@ def execute_pipeline(request: PipelineRequest):
     except Exception as e:
         print(f"[ORCHESTRATOR] ERROR: Pipeline execution failed - {str(e)}")
         raise HTTPException(status_code=500, detail=f"Pipeline execution failed: {str(e)}")
+
+
+class EdgePipelineRequest(BaseModel):
+    """Request schema for edge-based pipeline execution"""
+    camera_id: str = Field(..., description="Camera identifier")
+    detection_output: dict = Field(..., description="Detection output from edge device (already transformed)")
+
+
+@app.post("/pipeline/execute-edge", tags=["pipeline"])
+def execute_edge_pipeline(request: EdgePipelineRequest):
+    """
+    Orchestrate EDGE-BASED pipeline: Usecase → Alert → Analytics
+    
+    ⚠️ MODE: Edge (camera + detection run on edge device)
+    Edge device sends detection results to /edge/ingest, then calls this endpoint.
+    
+    This orchestrator:
+    - Skips camera API (edge device handles capture)
+    - Skips detection API (edge device handles inference)
+    - Starts from usecase API
+    - Chains: Usecase → Alert → Analytics
+    
+    **Request Body:**
+    - **camera_id**: Camera identifier (required)
+    - **detection_output**: Detection output from edge/ingest (transformed format)
+    
+    **Example:**
+    ```json
+    {
+      "camera_id": "edge_cam_1",
+      "detection_output": {
+        "camera_id": "edge_cam_1",
+        "timestamp": "2026-02-27T10:00:00",
+        "frame_id": 123,
+        "detections": [...]
+      }
+    }
+    ```
+    """
+    print("\n" + "="*80)
+    print("[ORCHESTRATOR] EDGE PIPELINE EXECUTION STARTED")
+    print("="*80)
+    print(f"[ORCHESTRATOR] Mode: EDGE (camera + detection on edge device)")
+    print(f"[ORCHESTRATOR] Camera ID: {request.camera_id}")
+    print(f"[ORCHESTRATOR] Detection count: {len(request.detection_output.get('detections', []))}")
+    print("="*80 + "\n")
+    
+    import requests
+    base_url = "http://127.0.0.1:8000"
+    timeout = 30
+    
+    try:
+        # STEP 1: Evaluate Usecases (SKIP camera + detection - edge device handled it)
+        print(f"[ORCHESTRATOR] STEP 1/3: Calling Usecase API")
+        print(f"[ORCHESTRATOR] Endpoint: POST {base_url}/usecase/evaluate")
+        print(f"[ORCHESTRATOR] ℹ️  Camera and Detection APIs BYPASSED (edge mode)")
+        
+        usecase_payload = {
+            "camera_id": request.camera_id,
+            "detection_output": request.detection_output
+        }
+        
+        usecase_response = requests.post(
+            f"{base_url}/usecase/evaluate",
+            json=usecase_payload,
+            timeout=timeout
+        )
+        print(f"[ORCHESTRATOR] Usecase API Response: {usecase_response.status_code}")
+        
+        if usecase_response.status_code != 200:
+            print(f"[ORCHESTRATOR] ERROR: Usecase API failed")
+            raise HTTPException(status_code=usecase_response.status_code,
+                              detail=f"Usecase API failed: {usecase_response.text}")
+        
+        usecase_data = usecase_response.json()
+        print(f"[ORCHESTRATOR] Usecase API Success")
+        print(f"[ORCHESTRATOR]   - Results count: {len(usecase_data.get('results', []))}")
+        
+        triggered_usecases = [r for r in usecase_data.get('results', []) if r.get('triggered')]
+        print(f"[ORCHESTRATOR]   - Triggered usecases: {len(triggered_usecases)}/{len(usecase_data.get('results', []))}")
+        
+        for result in usecase_data.get('results', []):
+            status = "✓ TRIGGERED" if result.get('triggered') else "✗ Not triggered"
+            print(f"[ORCHESTRATOR]     {result.get('usecase_id')}: {status}")
+        print("")
+        
+        # STEP 2: Send Alerts
+        print(f"[ORCHESTRATOR] STEP 2/3: Calling Alert API")
+        print(f"[ORCHESTRATOR] Endpoint: POST {base_url}/alert/send")
+        
+        alert_payload = {
+            "camera_id": request.camera_id,
+            "usecase_results": usecase_data.get('results', [])
+        }
+        print(f"[ORCHESTRATOR] Processing alerts for {len(triggered_usecases)} triggered usecases")
+        
+        alert_response = requests.post(
+            f"{base_url}/alert/send",
+            json=alert_payload,
+            timeout=timeout
+        )
+        print(f"[ORCHESTRATOR] Alert API Response: {alert_response.status_code}")
+        
+        if alert_response.status_code != 200:
+            print(f"[ORCHESTRATOR] WARNING: Alert API failed (non-critical)")
+            print(f"[ORCHESTRATOR] Alert error: {alert_response.text}")
+            alert_data = {"alerts_sent": [], "status": "failed"}
+        else:
+            alert_data = alert_response.json()
+            print(f"[ORCHESTRATOR] Alert API Success")
+            print(f"[ORCHESTRATOR]   - Alerts sent: {alert_data.get('total_alerts_sent', 0)}")
+        
+        # STEP 3: Analytics (future enhancement)
+        print(f"[ORCHESTRATOR] STEP 3/3: Analytics")
+        print(f"[ORCHESTRATOR] ℹ️  Analytics aggregation runs via scheduler")
+        print(f"[ORCHESTRATOR] ℹ️  Usecase results already persisted to DB")
+        
+        print("")
+        print("="*80)
+        print("[ORCHESTRATOR] EDGE PIPELINE EXECUTION COMPLETED")
+        print("="*80 + "\n")
+        
+        # Return combined results
+        return {
+            "status": "success",
+            "mode": "edge",
+            "camera_id": request.camera_id,
+            "pipeline_results": {
+                "camera": {
+                    "status": "bypassed_edge_mode",
+                    "note": "Camera capture handled by edge device"
+                },
+                "detection": {
+                    "status": "bypassed_edge_mode",
+                    "note": "Inference handled by edge device",
+                    "detections_count": len(request.detection_output.get('detections', []))
+                },
+                "usecases": {
+                    "evaluated": len(usecase_data.get('results', [])),
+                    "triggered": len(triggered_usecases),
+                    "results": usecase_data.get('results', [])
+                },
+                "alerts": {
+                    "sent": alert_data.get('total_alerts_sent', 0),
+                    "details": alert_data.get('alerts_sent', [])
+                },
+                "analytics": {
+                    "status": "persisted",
+                    "note": "Aggregation runs via scheduler"
+                }
+            }
+        }
+        
+    except requests.exceptions.ConnectionError as e:
+        print(f"[ORCHESTRATOR] ERROR: Connection failed - {str(e)}")
+        raise HTTPException(status_code=503, detail=f"Service connection failed: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ORCHESTRATOR] ERROR: Edge pipeline execution failed - {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Edge pipeline execution failed: {str(e)}")
 
 
 # Root endpoint

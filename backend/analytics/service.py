@@ -202,3 +202,48 @@ def get_detection_analytics(camera_id: str = None, start_date: date = None, end_
         return results
     finally:
         db.close()
+
+
+def get_people_count_analytics(camera_id: str = None, start_date: date = None, end_date: date = None):
+    """
+    Get people count analytics from usecase results.
+    
+    Retrieves people_count metadata from the people_count usecase evaluations.
+    
+    Args:
+        camera_id: Filter by camera (optional)
+        start_date: Start date filter (optional)
+        end_date: End date filter (optional)
+    
+    Returns:
+        List of usecase results with people_count metadata
+    """
+    from database.models import UsecaseResult
+    
+    print(f"[ANALYTICS QUERY] Fetching people_count analytics")
+    
+    db = SessionLocal()
+    try:
+        query = db.query(UsecaseResult).filter(
+            UsecaseResult.usecase_name == 'people_count',
+            UsecaseResult.result_metadata.isnot(None)
+        )
+        
+        if camera_id:
+            query = query.filter(UsecaseResult.camera_id == camera_id)
+            print(f"[ANALYTICS QUERY] Filtered by camera_id: {camera_id}")
+        
+        if start_date:
+            query = query.filter(func.date(UsecaseResult.timestamp) >= start_date)
+            print(f"[ANALYTICS QUERY] Filtered by start_date: {start_date}")
+        
+        if end_date:
+            query = query.filter(func.date(UsecaseResult.timestamp) <= end_date)
+            print(f"[ANALYTICS QUERY] Filtered by end_date: {end_date}")
+        
+        results = query.order_by(UsecaseResult.timestamp.desc()).all()
+        print(f"[ANALYTICS QUERY] Found {len(results)} people_count records")
+        
+        return results
+    finally:
+        db.close()

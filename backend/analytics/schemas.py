@@ -46,3 +46,19 @@ class DetectionAnalytics(BaseModel):
 class DetectionAnalyticsResponse(BaseModel):
     data: list[DetectionAnalytics]
     total_records: int
+
+
+# People Count Analytics Response
+class PeopleCountRecord(BaseModel):
+    timestamp: datetime
+    camera_id: str
+    frame_id: Optional[int]
+    people_count: int
+
+
+class PeopleCountAnalyticsResponse(BaseModel):
+    data: list[PeopleCountRecord]
+    total_records: int
+    average_count: float
+    max_count: int
+    min_count: int

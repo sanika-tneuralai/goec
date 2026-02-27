@@ -6,10 +6,9 @@ from typing import List, Optional
 
 
 class UsecaseRequest(BaseModel):
-    """Request to evaluate multiple usecases"""
+    """Request to evaluate usecases for a camera (database-driven)"""
     camera_id: str = Field(..., description="Camera ID")
     detection_output: dict = Field(..., description="Detection API output")
-    usecases: List[str] = Field(..., description="List of usecase IDs to evaluate")
 
 
 class UsecaseResult(BaseModel):
@@ -20,6 +19,9 @@ class UsecaseResult(BaseModel):
     matched_objects: List[dict] = Field(default_factory=list, description="Objects that matched the rule")
     detection_id: Optional[int] = Field(None, description="ID of associated detection")
     screenshot_path: Optional[str] = Field(None, description="Path to detection screenshot")
+    timestamp: Optional[str] = Field(None, description="Timestamp of evaluation")
+    frame_id: Optional[int] = Field(None, description="Frame ID from detection")
+    metadata: Optional[dict] = Field(default_factory=dict, description="Usecase-specific metadata")
 
 
 class UsecaseResponse(BaseModel):
