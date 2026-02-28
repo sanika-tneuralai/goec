@@ -29,6 +29,7 @@ USE_GPU = True  # Auto-detect GPU, fallback to CPU
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 API_RELOAD = os.getenv("API_RELOAD", "false").lower() == "true"
+API_BASE_URL = os.getenv("API_BASE_URL", f"http://127.0.0.1:{API_PORT}")
 
 # Logging settings
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")

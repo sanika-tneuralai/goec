@@ -249,7 +249,8 @@ def execute_pipeline(request: PipelineRequest):
     print("="*80 + "\n")
     
     import requests
-    base_url = "http://127.0.0.1:8000"
+    from common.config import API_BASE_URL
+    base_url = API_BASE_URL
     timeout = 30  # 30 second timeout for each API call
     
     # Default usecases if none provided
@@ -451,7 +452,8 @@ def execute_edge_pipeline(request: EdgePipelineRequest):
     print("="*80 + "\n")
     
     import requests
-    base_url = "http://127.0.0.1:8000"
+    from common.config import API_BASE_URL
+    base_url = API_BASE_URL
     timeout = 30
     
     try:
