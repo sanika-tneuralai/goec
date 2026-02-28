@@ -49,6 +49,11 @@ async def lifespan(app: FastAPI):
     init_db()
     logger.info("Database initialized")
     
+    # Register orchestration callback with edge_ingest
+    from edge_ingest import service as edge_ingest_service
+    edge_ingest_service.register_orchestration_callback(_run_edge_orchestration)
+    logger.info("Edge orchestration callback registered")
+    
     # Start analytics scheduler
     start_scheduler()
     logger.info("Analytics scheduler started")
@@ -412,43 +417,27 @@ class EdgePipelineRequest(BaseModel):
     detection_output: dict = Field(..., description="Detection output from edge device (already transformed)")
 
 
-@app.post("/pipeline/execute-edge", tags=["pipeline"])
-def execute_edge_pipeline(request: EdgePipelineRequest):
+def _run_edge_orchestration(camera_id: str, detection_output: dict) -> dict:
     """
-    Orchestrate EDGE-BASED pipeline: Usecase → Alert → Analytics
+    Internal orchestration function for edge-based pipeline.
+    Called automatically after edge/ingest persistence completes.
     
-    ⚠️ MODE: Edge (camera + detection run on edge device)
-    Edge device sends detection results to /edge/ingest, then calls this endpoint.
+    This is the ONLY place where edge pipeline orchestration logic exists.
+    Can be called internally (from edge_ingest) or via HTTP endpoint.
     
-    This orchestrator:
-    - Skips camera API (edge device handles capture)
-    - Skips detection API (edge device handles inference)
-    - Starts from usecase API
-    - Chains: Usecase → Alert → Analytics
-    
-    **Request Body:**
-    - **camera_id**: Camera identifier (required)
-    - **detection_output**: Detection output from edge/ingest (transformed format)
-    
-    **Example:**
-    ```json
-    {
-      "camera_id": "edge_cam_1",
-      "detection_output": {
-        "camera_id": "edge_cam_1",
-        "timestamp": "2026-02-27T10:00:00",
-        "frame_id": 123,
-        "detections": [...]
-      }
-    }
-    ```
+    Args:
+        camera_id: Camera identifier
+        detection_output: Detection output from edge device (transformed format)
+        
+    Returns:
+        Dictionary with pipeline results
     """
     print("\n" + "="*80)
     print("[ORCHESTRATOR] EDGE PIPELINE EXECUTION STARTED")
     print("="*80)
     print(f"[ORCHESTRATOR] Mode: EDGE (camera + detection on edge device)")
-    print(f"[ORCHESTRATOR] Camera ID: {request.camera_id}")
-    print(f"[ORCHESTRATOR] Detection count: {len(request.detection_output.get('detections', []))}")
+    print(f"[ORCHESTRATOR] Camera ID: {camera_id}")
+    print(f"[ORCHESTRATOR] Detection count: {len(detection_output.get('detections', []))}")
     print("="*80 + "\n")
     
     import requests
@@ -463,8 +452,8 @@ def execute_edge_pipeline(request: EdgePipelineRequest):
         print(f"[ORCHESTRATOR] ℹ️  Camera and Detection APIs BYPASSED (edge mode)")
         
         usecase_payload = {
-            "camera_id": request.camera_id,
-            "detection_output": request.detection_output
+            "camera_id": camera_id,
+            "detection_output": detection_output
         }
         
         usecase_response = requests.post(
@@ -496,7 +485,7 @@ def execute_edge_pipeline(request: EdgePipelineRequest):
         print(f"[ORCHESTRATOR] Endpoint: POST {base_url}/alert/send")
         
         alert_payload = {
-            "camera_id": request.camera_id,
+            "camera_id": camera_id,
             "usecase_results": usecase_data.get('results', [])
         }
         print(f"[ORCHESTRATOR] Processing alerts for {len(triggered_usecases)} triggered usecases")
@@ -531,7 +520,7 @@ def execute_edge_pipeline(request: EdgePipelineRequest):
         return {
             "status": "success",
             "mode": "edge",
-            "camera_id": request.camera_id,
+            "camera_id": camera_id,
             "pipeline_results": {
                 "camera": {
                     "status": "bypassed_edge_mode",
@@ -540,7 +529,7 @@ def execute_edge_pipeline(request: EdgePipelineRequest):
                 "detection": {
                     "status": "bypassed_edge_mode",
                     "note": "Inference handled by edge device",
-                    "detections_count": len(request.detection_output.get('detections', []))
+                    "detections_count": len(detection_output.get('detections', []))
                 },
                 "usecases": {
                     "evaluated": len(usecase_data.get('results', [])),
@@ -560,12 +549,66 @@ def execute_edge_pipeline(request: EdgePipelineRequest):
         
     except requests.exceptions.ConnectionError as e:
         print(f"[ORCHESTRATOR] ERROR: Connection failed - {str(e)}")
-        raise HTTPException(status_code=503, detail=f"Service connection failed: {str(e)}")
-    except HTTPException:
-        raise
+        logger.error(f"Edge orchestration connection failed: {str(e)}", exc_info=True)
+        return {
+            "status": "error",
+            "message": f"Service connection failed: {str(e)}"
+        }
+    except HTTPException as e:
+        logger.error(f"Edge orchestration HTTP error: {e.detail}", exc_info=True)
+        return {
+            "status": "error",
+            "message": str(e.detail)
+        }
     except Exception as e:
         print(f"[ORCHESTRATOR] ERROR: Edge pipeline execution failed - {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Edge pipeline execution failed: {str(e)}")
+        logger.error(f"Edge orchestration failed: {str(e)}", exc_info=True)
+        return {
+            "status": "error",
+            "message": f"Pipeline execution failed: {str(e)}"
+        }
+
+
+@app.post("/pipeline/execute-edge", tags=["pipeline"])
+def execute_edge_pipeline(request: EdgePipelineRequest):
+    """
+    Orchestrate EDGE-BASED pipeline: Usecase → Alert → Analytics
+    
+    ⚠️ NOTE: This endpoint is optional. Orchestration now happens automatically
+    after /edge/ingest persistence completes.
+    
+    ⚠️ MODE: Edge (camera + detection run on edge device)
+    
+    This orchestrator:
+    - Skips camera API (edge device handles capture)
+    - Skips detection API (edge device handles inference)
+    - Starts from usecase API
+    - Chains: Usecase → Alert → Analytics
+    
+    **Request Body:**
+    - **camera_id**: Camera identifier (required)
+    - **detection_output**: Detection output from edge/ingest (transformed format)
+    
+    **Example:**
+    ```json
+    {
+      "camera_id": "edge_cam_1",
+      "detection_output": {
+        "camera_id": "edge_cam_1",
+        "timestamp": "2026-02-27T10:00:00",
+        "frame_id": 123,
+        "detections": [...]
+      }
+    }
+    ```
+    """
+    result = _run_edge_orchestration(request.camera_id, request.detection_output)
+    
+    # Convert errors to HTTPException for HTTP endpoint
+    if result.get("status") == "error":
+        raise HTTPException(status_code=500, detail=result.get("message"))
+    
+    return result
 
 
 # Root endpoint

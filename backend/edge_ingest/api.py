@@ -24,26 +24,27 @@ async def ingest_edge_detection(payload: EdgeInput, background_tasks: Background
     """
     Receive detection output from edge device and persist to database.
     
-    ⚠️ ORCHESTRATION NOTE:
+    ⚠️ PERSISTENCE-ONLY ENDPOINT:
     - This endpoint ONLY validates input and persists detections
-    - It does NOT evaluate usecases, send alerts, or update analytics
-    - After calling this endpoint, call /pipeline/execute-edge for orchestration
+    - Orchestration (usecase → alert → analytics) happens AUTOMATICALLY after persistence
+    - No need to call /pipeline/execute-edge separately
     
     **Process Flow:**
     1. Edge device → POST /edge/ingest (validates + persists)
-    2. Edge device → POST /pipeline/execute-edge (orchestrates usecase → alert → analytics)
+    2. Orchestration triggered automatically by main.py after persistence completes
+    3. Analytics updated immediately
     
-    **Why Two Steps?**
-    - Separation of concerns: ingest ≠ orchestration
-    - Ingest can happen in background
-    - Orchestration is explicit and traceable
-    - Maintains API independence
+    **Separation of Concerns:**
+    - edge/ingest: Persistence only (this endpoint)
+    - main.py: Orchestration logic (triggered via internal hook)
+    - No HTTP self-calls
+    - Production-safe and scalable
     
     **This endpoint:**
     - Validates edge device output
     - Returns immediately (async, non-blocking)
     - Persists detections in background
-    - Returns transformed detection_output for orchestrator
+    - Triggers orchestration automatically after persistence
     
     **Required fields:** camera_id, timestamp, frame_id, person_count, object_count
     
@@ -52,7 +53,7 @@ async def ingest_edge_detection(payload: EdgeInput, background_tasks: Background
     - camera_id: Camera identifier
     - frame_id: Frame ID
     - detections_count: Number of detections
-    - detection_output: Transformed output (use this for /pipeline/execute-edge)
+    - orchestration: "automatic" (happens after persistence)
     """
     # Transform edge format to internal detection format
     try:
@@ -69,14 +70,14 @@ async def ingest_edge_detection(payload: EdgeInput, background_tasks: Background
         # Log ingestion rate periodically
         log_ingestion_rate()
         
-        # Return immediately with detection_output for orchestrator
+        # Return immediately - orchestration happens automatically in background
         return {
             "status": "accepted",
             "camera_id": payload.camera_id,
             "frame_id": payload.frame_id,
             "detections_count": detection_output["total_detections_count"],
-            "detection_output": detection_output,
-            "next_step": "Call POST /pipeline/execute-edge with detection_output to complete processing"
+            "orchestration": "automatic",
+            "note": "Persistence and orchestration handled automatically"
         }
         
     except Exception as e:

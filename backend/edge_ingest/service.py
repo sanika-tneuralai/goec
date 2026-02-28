@@ -1,7 +1,7 @@
 """
 Edge ingest service for processing edge device detections.
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Callable
 from datetime import datetime
 import logging
 
@@ -12,6 +12,22 @@ logger = logging.getLogger(__name__)
 # Ingestion metrics
 _ingest_count = 0
 _last_log_time = datetime.now()
+
+# Orchestration callback - registered by main.py during startup
+_orchestration_callback: Optional[Callable[[str, Dict[str, Any]], None]] = None
+
+
+def register_orchestration_callback(callback: Callable[[str, Dict[str, Any]], None]):
+    """
+    Register orchestration callback to be called after persistence completes.
+    This hook is owned by main.py and registered during app startup.
+    
+    Args:
+        callback: Function(camera_id, detection_output) -> None
+    """
+    global _orchestration_callback
+    _orchestration_callback = callback
+    logger.info("[EDGE_INGEST] Orchestration callback registered")
 
 
 def process_detection_background(camera_id: str, camera_name: Optional[str], detection_output: Dict[str, Any]):
@@ -49,8 +65,18 @@ def process_detection_background(camera_id: str, camera_name: Optional[str], det
         
         logger.info(f"[EDGE_INGEST] Persisted {len(detection_ids)} detections for camera {camera_id}")
         
-        # ⚠️ REMOVED: Direct usecase evaluation (moved to main.py orchestrator)
-        # Orchestration is now handled by main.py pipeline controller
+        # ⚠️ ORCHESTRATION HOOK: Trigger pipeline after persistence completes
+        # This hook is owned and registered by main.py during startup
+        if _orchestration_callback:
+            try:
+                logger.info(f"[EDGE_INGEST] Triggering orchestration for camera {camera_id}")
+                _orchestration_callback(camera_id, detection_output)
+                logger.info(f"[EDGE_INGEST] Orchestration completed for camera {camera_id}")
+            except Exception as orch_error:
+                # Don't fail persistence if orchestration fails
+                logger.error(f"[EDGE_INGEST] Orchestration failed for camera {camera_id}: {str(orch_error)}", exc_info=True)
+        else:
+            logger.warning(f"[EDGE_INGEST] No orchestration callback registered - skipping pipeline")
         
     except Exception as e:
         logger.error(f"Background processing failed for camera {camera_id}: {str(e)}", exc_info=True)
