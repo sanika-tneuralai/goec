@@ -8,7 +8,8 @@ if deepstream_path not in sys.path:
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from typing import Optional, List
 from pydantic import BaseModel, Field
@@ -166,6 +167,32 @@ app.include_router(config_router)
 app.include_router(alert_router)
 app.include_router(analytics_router)
 app.include_router(edge_ingest_router)
+
+
+# ============================================================================
+# FRONTEND STATIC FILES - DASHBOARD
+# ============================================================================
+
+# Get the path to the frontend directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIR = os.path.join(os.path.dirname(BASE_DIR), "frontend")
+
+# Mount static files (if frontend has CSS/JS/images)
+if os.path.exists(FRONTEND_DIR):
+    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+    logger.info(f"Frontend directory mounted: {FRONTEND_DIR}")
+
+
+@app.get("/", include_in_schema=False)
+async def serve_dashboard():
+    """Serve the dashboard HTML at root URL"""
+    dashboard_path = os.path.join(FRONTEND_DIR, "dashboard.html")
+    if os.path.exists(dashboard_path):
+        return FileResponse(dashboard_path)
+    return JSONResponse(
+        status_code=404,
+        content={"message": "Dashboard not found. Ensure frontend/dashboard.html exists."}
+    )
 
 
 # ============================================================================
