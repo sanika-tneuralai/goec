@@ -34,6 +34,16 @@ def evaluate_usecases(camera_id: str, detection_output: Dict[str, Any]) -> Dict[
     print(f"[USECASE DISPATCHER] Querying database for enabled usecases...")
     usecase_configs = get_enabled_usecases(camera_id)
     
+    # Always include people_count as informational usecase
+    people_count_exists = any(config['usecase_name'] == 'people_count' for config in usecase_configs)
+    if not people_count_exists:
+        print(f"[USECASE DISPATCHER] Adding 'people_count' as informational usecase")
+        usecase_configs.append({
+            "usecase_name": "people_count",
+            "enabled": True,
+            "roi": None
+        })
+    
     if not usecase_configs:
         print(f"[USECASE DISPATCHER] No enabled usecases found for camera '{camera_id}'")
         print(f"[USECASE DISPATCHER] Returning empty result set")
@@ -45,7 +55,8 @@ def evaluate_usecases(camera_id: str, detection_output: Dict[str, Any]) -> Dict[
     
     print(f"[USECASE DISPATCHER] Found {len(usecase_configs)} enabled usecase(s):")
     for config in usecase_configs:
-        print(f"[USECASE DISPATCHER]   - {config['usecase_name']}")
+        usecase_type = " (informational)" if config['usecase_name'] == 'people_count' else ""
+        print(f"[USECASE DISPATCHER]   - {config['usecase_name']}{usecase_type}")
     
     detections = detection_output.get("detections", [])
     screenshot_path = detection_output.get("screenshot_path")
