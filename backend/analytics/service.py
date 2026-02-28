@@ -247,3 +247,43 @@ def get_people_count_analytics(camera_id: str = None, start_date: date = None, e
         return results
     finally:
         db.close()
+
+
+def get_live_people_count():
+    """
+    Get latest people count per camera for live dashboard.
+    
+    Returns the most recent people_count for each camera.
+    """
+    from database.models import UsecaseResult
+    from sqlalchemy.orm import aliased
+    
+    print(f"[ANALYTICS QUERY] Fetching live people_count")
+    
+    db = SessionLocal()
+    try:
+        # Subquery to get the latest timestamp per camera
+        subquery = db.query(
+            UsecaseResult.camera_id,
+            func.max(UsecaseResult.timestamp).label('max_timestamp')
+        ).filter(
+            UsecaseResult.usecase_name == 'people_count',
+            UsecaseResult.result_metadata.isnot(None)
+        ).group_by(UsecaseResult.camera_id).subquery()
+        
+        # Join to get the full records with latest timestamp
+        results = db.query(UsecaseResult).join(
+            subquery,
+            and_(
+                UsecaseResult.camera_id == subquery.c.camera_id,
+                UsecaseResult.timestamp == subquery.c.max_timestamp
+            )
+        ).filter(
+            UsecaseResult.usecase_name == 'people_count'
+        ).all()
+        
+        print(f"[ANALYTICS QUERY] Found {len(results)} cameras with live people_count")
+        
+        return results
+    finally:
+        db.close()

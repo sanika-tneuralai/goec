@@ -9,13 +9,15 @@ from analytics.schemas import (
     DailyAnalyticsResponse, DailyAnalytics,
     AlertAnalyticsResponse, AlertAnalytics,
     DetectionAnalyticsResponse, DetectionAnalytics,
-    PeopleCountAnalyticsResponse, PeopleCountRecord
+    PeopleCountAnalyticsResponse, PeopleCountRecord,
+    LivePeopleCountResponse, LiveCameraCount
 )
 from analytics.service import (
     get_daily_analytics,
     get_alert_analytics,
     get_detection_analytics,
-    get_people_count_analytics
+    get_people_count_analytics,
+    get_live_people_count
 )
 
 
@@ -195,4 +197,38 @@ def get_people_count(
         average_count=round(avg_count, 2),
         max_count=max_count,
         min_count=min_count
+    )
+
+
+@router.get("/live/people-count", response_model=LivePeopleCountResponse)
+def get_live_people_count_endpoint():
+    """
+    Get live people count per camera.
+    
+    Returns the most recent people count for each camera.
+    Designed for real-time dashboard polling.
+    
+    **Response:**
+    - Current timestamp
+    - Latest people count per camera
+    """
+    from datetime import datetime
+    
+    print(f"\n[API] GET /analytics/live/people-count called")
+    
+    results = get_live_people_count()
+    
+    cameras = []
+    for r in results:
+        people_count = r.result_metadata.get('people_count', 0) if r.result_metadata else 0
+        cameras.append(LiveCameraCount(
+            camera_id=r.camera_id,
+            people_count=people_count
+        ))
+    
+    print(f"[API] Returning live count for {len(cameras)} cameras\n")
+    
+    return LivePeopleCountResponse(
+        timestamp=datetime.utcnow().isoformat(),
+        cameras=cameras
     )

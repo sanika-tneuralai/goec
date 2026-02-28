@@ -44,7 +44,11 @@ class PeopleCountRule(BaseUsecaseRule):
             if class_name == "person":
                 people_count += 1
                 print(f"[RULE:{self.usecase_id}] ✓ Person detected (confidence: {confidence:.2f})")
-                matched_objects.append(detection)
+                
+                # Add detection with in_roi set to None (ROI not considered for this usecase)
+                matched_detection = detection.copy()
+                matched_detection["in_roi"] = None
+                matched_objects.append(matched_detection)
         
         # This usecase is informational only - never triggers alerts
         triggered = False

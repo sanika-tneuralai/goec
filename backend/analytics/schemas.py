@@ -62,3 +62,14 @@ class PeopleCountAnalyticsResponse(BaseModel):
     average_count: float
     max_count: int
     min_count: int
+
+
+# Live People Count Response
+class LiveCameraCount(BaseModel):
+    camera_id: str
+    people_count: int
+
+
+class LivePeopleCountResponse(BaseModel):
+    timestamp: str
+    cameras: list[LiveCameraCount]
